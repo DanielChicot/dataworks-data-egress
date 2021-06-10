@@ -25,9 +25,9 @@ class DataworksDataEgressApplication(private val queueService: QueueService,
                 try {
                     queueService.incomingPrefixes()
                         .map { (receipt, prefixes) ->
-                            Pair(receipt, prefixes.map { Pair(it, dbService.tableEntries(it)) })
+                            Pair(receipt, prefixes.flatMap { dbService.tableEntries(it) })
                         }
-                        .map { (receiptHandle, egressRequests) -> Pair(receiptHandle, egressObjects(egressRequests)) }
+                        .map { (receiptHandle, egressRequests: List<EgressSpecification>) -> Pair(receiptHandle, egressObjects(egressRequests)) }
                         .filter { it.second }
                         .map { it.first }
                         .collect(queueService::deleteMessage)
@@ -38,8 +38,8 @@ class DataworksDataEgressApplication(private val queueService: QueueService,
         }
     }
 
-    private suspend fun egressObjects(requests: List<Pair<String, List<EgressSpecification>>>): Boolean =
-        requests.map { (key, specifications) -> s3Service.egressObjects(key, specifications) }.all { it }
+    private suspend fun egressObjects(requests: List<EgressSpecification>): Boolean =
+        requests.map { specification -> s3Service.egressObjects(specification) }.all { it }
 
     companion object {
         private val logger = DataworksLogger.getLogger(DataworksDataEgressApplication::class)

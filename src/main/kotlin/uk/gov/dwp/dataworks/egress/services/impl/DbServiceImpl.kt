@@ -22,9 +22,9 @@ class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
         }.map {
             EgressSpecification(
                 sourceBucket = attributeStringValue(it, SOURCE_BUCKET_COLUMN),
-                sourcePrefix = attributeStringValue(it, SOURCE_PREFIX_COLUMN),
+                sourcePrefix = attributeStringValue(it, SOURCE_PREFIX_COLUMN).replace(TODAYS_DATE_PLACEHOLDER, todaysDate()),
                 destinationBucket = attributeStringValue(it, DESTINATION_BUCKET_COLUMN),
-                destinationPrefix = attributeStringValue(it, DESTINATION_PREFIX_COLUMN),
+                destinationPrefix = attributeStringValue(it, DESTINATION_PREFIX_COLUMN).replace(TODAYS_DATE_PLACEHOLDER, todaysDate()),
                 transferType = attributeStringValue(it, TRANSFER_TYPE_COLUMN),
                 compress = it[COMPRESS_COLUMN]?.bool() ?: false,
                 compressionFormat = it[COMPRESSION_FORMAT_COLUMN]?.s(),

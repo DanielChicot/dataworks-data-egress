@@ -9,7 +9,9 @@ import software.amazon.awssdk.core.async.AsyncRequestBody
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
+import software.amazon.awssdk.services.s3.model.S3Object
 import uk.gov.dwp.dataworks.egress.domain.EgressSpecification
 import uk.gov.dwp.dataworks.egress.services.S3Service
 import uk.gov.dwp.dataworks.logging.DataworksLogger
@@ -23,10 +25,16 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                     private val decryptingS3Client: AmazonS3EncryptionV2,
                     private val assumedRoleS3ClientProvider: suspend (String) -> S3AsyncClient): S3Service {
 
-    override suspend fun egressObjects(key: String, specifications: List<EgressSpecification>): Boolean =
-        specifications.map { specification -> egressObject(key, specification) }.all { it }
+    override suspend fun egressObjects(specifications: List<EgressSpecification>): Boolean =
+        specifications.map { specification -> egressObjects(specification) }.all { it }
 
-    override suspend fun egressObject(key: String, specification: EgressSpecification): Boolean =
+    override suspend fun egressObjects(specification: EgressSpecification): Boolean =
+        s3AsyncClient.listObjectsV2(listObjectsRequest(specification)).await().contents()
+            .map(S3Object::key).map { key ->
+                egressObject(key, specification)
+            }.all { it }
+
+    private suspend fun egressObject(key: String, specification: EgressSpecification): Boolean =
         try {
             logger.info("Egressing s3 object", "key" to key, "specification" to "$specification")
             val metadata = objectMetadata(specification.sourceBucket, key)
@@ -41,6 +49,13 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             false
         }
 
+
+    private fun listObjectsRequest(specification: EgressSpecification): ListObjectsV2Request =
+        with(ListObjectsV2Request.builder()) {
+            bucket(specification.sourceBucket)
+            prefix(specification.sourcePrefix)
+            build()
+        }
 
     private fun putObjectRequest(specification: EgressSpecification,
                                  key: String): PutObjectRequest =
@@ -65,7 +80,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                                        specification: EgressSpecification,
                                        key: String): ByteArray =
         when {
-            wasEmrfsClientSideEncrypted(metadata) -> {
+            wasClientSideEncrypted(metadata) -> {
                 logger.info("Found client side encrypted object")
                 decryptedObjectContents(specification.sourceBucket, key)
             }
@@ -74,7 +89,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             }
         }
 
-    private fun wasEmrfsClientSideEncrypted(metadata: MutableMap<String, String>) =
+    private fun wasClientSideEncrypted(metadata: MutableMap<String, String>) =
         metadata.containsKey(MATERIALS_DESCRIPTION_METADATA_KEY)
 
     private suspend fun decryptedObjectContents(bucket: String, key: String) = withContext(Dispatchers.IO) {
