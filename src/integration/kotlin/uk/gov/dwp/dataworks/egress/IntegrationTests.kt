@@ -52,7 +52,7 @@ class IntegrationTests: StringSpec() {
             val (iv, encrypted) = cipherService.encrypt(plaintextDataKey, sourceContents.toByteArray())
             val putRequest = with (PutObjectRequest.builder()) {
                 bucket("source")
-                key("opsmi/opsmi.csv")
+                key("opsmi/opsmi.csv.enc")
                 metadata(mapOf("datakeyencryptionkeyid" to encryptingKeyId, "iv" to iv, "ciphertext" to ciphertextDataKey))
                 build()
             }
@@ -62,8 +62,7 @@ class IntegrationTests: StringSpec() {
             sqs.sendMessage(request).await()
 
             withTimeout(Duration.ofSeconds(20)) {
-                val targetContents = egressedContents("target", "opsmi.csv")
-                targetContents shouldBe sourceContents
+                egressedContents("target", "opsmi.csv") shouldBe sourceContents
             }
         }
     }

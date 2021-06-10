@@ -73,7 +73,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
     private fun targetKey(specification: EgressSpecification,
                           key: String): String =
         "${specification.destinationPrefix.replace(Regex("""/$"""), "")}/${File(key).name}"
-            .replace(Regex("""^/"""), "")
+            .replace(Regex("""^/"""), "").replace(Regex("""\.enc$"""), "")
 
     private suspend fun egressClient(specification: EgressSpecification): S3AsyncClient =
         specification.roleArn?.let {

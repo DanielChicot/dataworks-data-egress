@@ -208,7 +208,7 @@ def query_dynamodb(s3_prefixes, dynamodb):
     while not done:
         if start_key:
             scan_kwargs["ExclusiveStartKey"] = start_key
-        response = table.scan(**scan_kwargs)
+        response = table.scan(*scan_kwargs)
         for item in response[ITEMS]:
             if item[HASH_KEY].endswith("*"):
                 logger.info(f"Generic source_prefix found: {item[HASH_KEY]}")

@@ -8,8 +8,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.future.await
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.model.*
@@ -22,6 +20,7 @@ import kotlin.time.ExperimentalTime
 @Service
 class QueueServiceImpl(private val sqs: SqsAsyncClient,
                        private val sqsQueueUrl: String,
+                       private val sqsMaxReceptions: Int,
                        private val sqsCheckIntervalMs: Int): QueueService {
 
     override suspend fun incomingPrefixes(): Flow<Pair<String, List<String>>> = flow {
@@ -30,13 +29,19 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
                 val response = sqs.receiveMessage(receiveMessageRequest()).await()
                 if (response.hasMessages()) {
                     val message = response.messages().first()
-                    val receiptHandle = message.receiptHandle()
-                    sqs.changeMessageVisibility(changeMessageVisibilityRequest(receiptHandle)).await()
-                    logger.info("Message received", "body" to escaped(message))
-                    val body = gson.jsonObject(message.body())
-                    if (body.has("Records")) {
-                        emit(Pair(receiptHandle, messagePrefixes(body)))
+                    if (receptions(message.attributes()) < sqsMaxReceptions) {
+                        val receiptHandle = message.receiptHandle()
+                        sqs.changeMessageVisibility(changeMessageVisibilityRequest(receiptHandle)).await()
+                        logger.info("Message received", "body" to escaped(message))
+                        val body = gson.jsonObject(message.body())
+                        if (body.has("Records")) {
+                            emit(Pair(receiptHandle, messagePrefixes(body)))
+                        }
+                    } else {
+                        logger.warn("Ignoring message", "receptions" to "${receptions(message.attributes())}",
+                            "max_receptions" to "$sqsMaxReceptions")
                     }
+
                 }
             } else {
                 logger.info("Nothing on the queue")
@@ -45,10 +50,12 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
         }
     }
 
+    private fun receptions(attributes: MutableMap<MessageSystemAttributeName, String>): Int =
+        (attributes[MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT] ?: "1").toInt()
 
-    override suspend fun deleteMessage(receiptHandle: String): DeleteMessageResponse {
-        return sqs.deleteMessage(deleteMessageRequest(receiptHandle)).asDeferred().await()
-    }
+
+    override suspend fun deleteMessage(receiptHandle: String): DeleteMessageResponse =
+        sqs.deleteMessage(deleteMessageRequest(receiptHandle)).asDeferred().await()
 
     private fun deleteMessageRequest(receiptHandle: String): DeleteMessageRequest =
             with (DeleteMessageRequest.builder()) {
