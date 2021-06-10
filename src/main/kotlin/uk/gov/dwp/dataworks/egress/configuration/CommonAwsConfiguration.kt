@@ -14,21 +14,18 @@ import software.amazon.awssdk.services.sts.model.Credentials
 class CommonAwsConfiguration {
 
     @Bean
-    fun assumedRoleS3ClientProvider(stsAsyncClient: StsAsyncClient): (String) -> suspend () -> S3AsyncClient {
-        return { roleArn: String ->
-            suspend {
-                val credentials: Credentials = credentials(stsAsyncClient, roleArn)
-                with(S3AsyncClient.builder()) {
-                    credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(credentials.accessKeyId(), credentials.secretAccessKey())))
-                    build()
-                }
+    fun assumedRoleS3ClientProvider(stsAsyncClient: StsAsyncClient): suspend (String) -> S3AsyncClient =
+        { roleArn: String ->
+            val credentials: Credentials = credentials(stsAsyncClient, roleArn)
+            with(S3AsyncClient.builder()) {
+                credentialsProvider(StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(credentials.accessKeyId(), credentials.secretAccessKey())))
+                build()
             }
         }
-    }
 
     private suspend fun credentials(stsAsyncClient: StsAsyncClient, arn: String): Credentials =
-            stsAsyncClient.assumeRole(assumeRoleRequest(arn)).await().credentials()
+        stsAsyncClient.assumeRole(assumeRoleRequest(arn)).await().credentials()
 
     private fun assumeRoleRequest(arn: String): AssumeRoleRequest =
         with(AssumeRoleRequest.builder()) {
