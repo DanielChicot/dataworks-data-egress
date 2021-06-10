@@ -58,7 +58,6 @@ class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
     private fun todaysDate() = SimpleDateFormat("yyyy-MM-dd").format(Date())
 
     companion object {
-        private val logger = LoggerFactory.getLogger(DbServiceImpl::class.java)
         private const val SOURCE_PREFIX_COLUMN: String = "source_prefix"
         private const val SOURCE_BUCKET_COLUMN: String = "source_bucket"
         private const val DESTINATION_BUCKET_COLUMN: String = "destination_bucket"

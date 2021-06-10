@@ -2,10 +2,9 @@ package uk.gov.dwp.dataworks.egress.provider.impl
 
 import com.amazonaws.services.s3.model.EncryptionMaterials
 import com.amazonaws.services.s3.model.EncryptionMaterialsProvider
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import uk.gov.dwp.dataworks.egress.services.DataKeyService
+import uk.gov.dwp.dataworks.logging.DataworksLogger
 import java.util.*
 import javax.crypto.spec.SecretKeySpec
 
@@ -19,7 +18,7 @@ class DksEncryptionMaterialsProvider(private val dataKeyService: DataKeyService)
         }
         val keyId = materialsDescription[METADATA_KEYID]
         val encryptedKey = materialsDescription[METADATA_ENCRYPTED_KEY]
-        logger.info("Received keyId: '$keyId', encryptedKey: '$encryptedKey' from materials description")
+        logger.info("Received encryption materials", "keyId" to (keyId ?: ""), "encryptedKey" to (encryptedKey ?: ""))
         return if (null == keyId && null == encryptedKey) {
             getEncryptionMaterials()
         } else {
@@ -48,7 +47,7 @@ class DksEncryptionMaterialsProvider(private val dataKeyService: DataKeyService)
     }
 
     companion object {
-        private val logger: Logger = LoggerFactory.getLogger(DksEncryptionMaterialsProvider::class.java)
+        private val logger: DataworksLogger = DataworksLogger.getLogger(DksEncryptionMaterialsProvider::class.java)
         private const val ALGORITHM = "AES"
         private const val METADATA_KEYID = "keyid"
         private const val METADATA_ENCRYPTED_KEY = "encryptedkey"

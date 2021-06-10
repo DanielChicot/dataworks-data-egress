@@ -14,24 +14,31 @@ java.sourceCompatibility = JavaVersion.VERSION_11
 
 repositories {
 	mavenCentral()
+	maven(url = "https://jitpack.io")
 }
 
 dependencies {
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 
-	implementation("com.amazonaws:aws-java-sdk-s3:1.11.946")
-	implementation("com.google.code.gson:gson:2.8.6")
-	implementation("org.bouncycastle:bcprov-ext-jdk15on:1.68")
+	implementation("com.amazonaws:aws-java-sdk-s3:1.12.3")
+	implementation("com.github.dwp:dataworks-common-logging:0.0.6")
+	implementation("com.google.code.gson:gson:2.8.7")
+	implementation("org.bouncycastle:bcprov-ext-jdk15on:1.69")
+
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.0")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.5.0")
+
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.springframework.boot:spring-boot-starter-cache")
 	implementation("org.springframework.retry:spring-retry")
-	implementation(platform("software.amazon.awssdk:bom:2.16.79"))
+
+	implementation(platform("software.amazon.awssdk:bom:2.16.81"))
 	implementation("software.amazon.awssdk:dynamodb")
 	implementation("software.amazon.awssdk:sqs")
+	implementation("software.amazon.awssdk:sts")
+	implementation("software.amazon.awssdk:s3")
 
 	testImplementation("com.nhaarman.mockitokotlin2:mockito-kotlin:2.2.0")
 	testImplementation("io.kotest:kotest-assertions-core-jvm:4.6.0")

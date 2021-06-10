@@ -14,10 +14,9 @@ import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.model.*
 import uk.gov.dwp.dataworks.egress.services.QueueService
+import uk.gov.dwp.dataworks.logging.DataworksLogger
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
-import kotlin.time.microseconds
-import kotlin.time.milliseconds
 
 @ExperimentalTime
 @Service
@@ -33,6 +32,7 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
                     val message = response.messages().first()
                     val receiptHandle = message.receiptHandle()
                     sqs.changeMessageVisibility(changeMessageVisibilityRequest(receiptHandle)).await()
+                    logger.info("Message received", "body" to escaped(message))
                     val body = gson.jsonObject(message.body())
                     if (body.has("Records")) {
                         emit(Pair(receiptHandle, messagePrefixes(body)))
@@ -44,6 +44,7 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
             }
         }
     }
+
 
     override suspend fun deleteMessage(receiptHandle: String): DeleteMessageResponse {
         return sqs.deleteMessage(deleteMessageRequest(receiptHandle)).asDeferred().await()
@@ -97,8 +98,14 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
             build()
         }
 
+    private fun escaped(message: Message): String =
+        with (JsonObject()) {
+            addProperty("message", message.body())
+            Gson().toJson(this)
+        }
+
     companion object {
         private val gson = Gson()
-        private val logger: Logger = LoggerFactory.getLogger(QueueServiceImpl::class.java)
+        private val logger: DataworksLogger = DataworksLogger.getLogger(QueueServiceImpl::class.java)
     }
 }

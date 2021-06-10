@@ -40,9 +40,6 @@ class SecureHttpClientProvider : HttpClientProvider {
 
     private fun sslContext(): SSLContext =
         SSLContexts.custom().run {
-            println("=============================> identityStore: '$identityStore'")
-            println("=============================> trustStore: '$trustStore'")
-            println("=============================> identityStorePassword: '$identityStorePassword'")
             loadKeyMaterial(
                 File(identityStore),
                 identityStorePassword.toCharArray(),

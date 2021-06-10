@@ -6,7 +6,6 @@ import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.ContentType
 import org.apache.http.entity.StringEntity
 import org.apache.http.util.EntityUtils
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.retry.annotation.Backoff
 import org.springframework.retry.annotation.Retryable
@@ -16,6 +15,7 @@ import uk.gov.dwp.dataworks.egress.exceptions.DataKeyDecryptionException
 import uk.gov.dwp.dataworks.egress.exceptions.DataKeyServiceUnavailableException
 import uk.gov.dwp.dataworks.egress.provider.HttpClientProvider
 import uk.gov.dwp.dataworks.egress.services.DataKeyService
+import uk.gov.dwp.dataworks.logging.DataworksLogger
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.URLEncoder
@@ -53,7 +53,6 @@ class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider): Da
                                 Gson().fromJson(it, DataKeyResult::class.java)
                             }
                         EntityUtils.consume(entity)
-                        println("WOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO $result")
                         result
                     } else {
                         logger.warn("Getting batch data key - data key service returned bad status code",
@@ -93,7 +92,7 @@ class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider): Da
             } else {
                 httpClientProvider.client().use { client ->
                     val dksUrl = "$dataKeyServiceUrl/datakey/actions/decrypt?keyId=${
-                        URLEncoder.encode(encryptionKeyId,"US-ASCII")
+                        URLEncoder.encode(encryptionKeyId, "US-ASCII")
                     }"
                     val dksUrlWithCorrelationId = "$dksUrl&correlationId=$dksCorrelationId"
                     val httpPost = HttpPost(dksUrlWithCorrelationId)
@@ -152,10 +151,10 @@ class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider): Da
 
     private var dataKeyResult: DataKeyResult? = null
 
-    @Value("\${data.key.service.url}")
+    @Value("\${dks.url}")
     private lateinit var dataKeyServiceUrl: String
 
     companion object {
-        val logger = LoggerFactory.getLogger(DataKeyServiceImpl::class.java)
+        private val logger: DataworksLogger = DataworksLogger.getLogger(DataKeyServiceImpl::class.java)
     }
 }
