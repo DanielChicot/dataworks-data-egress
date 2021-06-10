@@ -6,6 +6,7 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withContext
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.core.async.AsyncRequestBody
+import software.amazon.awssdk.core.async.AsyncResponseTransformer
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
@@ -13,6 +14,8 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.model.S3Object
 import uk.gov.dwp.dataworks.egress.domain.EgressSpecification
+import uk.gov.dwp.dataworks.egress.services.CipherService
+import uk.gov.dwp.dataworks.egress.services.DataKeyService
 import uk.gov.dwp.dataworks.egress.services.S3Service
 import uk.gov.dwp.dataworks.logging.DataworksLogger
 import java.io.ByteArrayOutputStream
@@ -23,7 +26,9 @@ import com.amazonaws.services.s3.model.GetObjectRequest as GetObjectRequestVersi
 class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                     private val s3Client: S3Client,
                     private val decryptingS3Client: AmazonS3EncryptionV2,
-                    private val assumedRoleS3ClientProvider: suspend (String) -> S3AsyncClient): S3Service {
+                    private val assumedRoleS3ClientProvider: suspend (String) -> S3AsyncClient,
+                    private val dataKeyService: DataKeyService,
+                    private val cipherService: CipherService): S3Service {
 
     override suspend fun egressObjects(specifications: List<EgressSpecification>): Boolean =
         specifications.map { specification -> egressObjects(specification) }.all { it }
@@ -59,11 +64,16 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
 
     private fun putObjectRequest(specification: EgressSpecification,
                                  key: String): PutObjectRequest =
-        with(PutObjectRequest.builder()) {
+        with (PutObjectRequest.builder()) {
             bucket(specification.destinationBucket)
-            key("${specification.destinationPrefix.replace(Regex("""/$"""), "")}/${File(key).name}")
+            key(targetKey(specification, key))
             build()
         }
+
+    private fun targetKey(specification: EgressSpecification,
+                          key: String): String =
+        "${specification.destinationPrefix.replace(Regex("""/$"""), "")}/${File(key).name}"
+            .replace(Regex("""^/"""), "")
 
     private suspend fun egressClient(specification: EgressSpecification): S3AsyncClient =
         specification.roleArn?.let {
@@ -78,31 +88,53 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
 
     private suspend fun sourceContents(metadata: MutableMap<String, String>,
                                        specification: EgressSpecification,
-                                       key: String): ByteArray =
-        when {
+                                       key: String): ByteArray {
+        val metadataPairs = metadata.entries.map { (k, v) -> Pair(k, v) }.toTypedArray()
+
+        return when  {
             wasClientSideEncrypted(metadata) -> {
-                logger.info("Found client side encrypted object")
-                decryptedObjectContents(specification.sourceBucket, key)
+                logger.info("Found client side encrypted object", "bucket" to specification.sourceBucket, "key" to key, *metadataPairs)
+                clientSideEncryptedObjectContents(specification.sourceBucket, key)
+            }
+            wasPreEncrypted(metadata) -> {
+                logger.info("Found pre-encrypted object", "bucket" to specification.sourceBucket, "key" to key, *metadataPairs)
+                preEncryptedObjectContents(specification.sourceBucket, key)
             }
             else -> {
+                logger.info("Found unknown object", "bucket" to specification.sourceBucket, "key" to key, *metadataPairs)
                 ByteArray(0)
             }
         }
+    }
+
+    private suspend fun preEncryptedObjectContents(bucket: String, key: String): ByteArray =
+        with (s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await()) {
+            val metadata = response().metadata()
+            val iv = metadata[INITIALISATION_VECTOR_METADATA_KEY]
+            val encryptingKeyId = metadata[ENCRYPTING_KEY_ID_METADATA_KEY]
+            val encryptedKey = metadata[CIPHERTEXT_METADATA_KEY]
+            val decryptedKey = dataKeyService.decryptKey(encryptingKeyId!!, encryptedKey!!)
+            cipherService.decrypt(decryptedKey, iv!!, asByteArray())
+        }
+
+    private suspend fun clientSideEncryptedObjectContents(bucket: String, key: String) = withContext(Dispatchers.IO) {
+        ByteArrayOutputStream().run {
+            decryptingS3Client.getObject(GetObjectRequestVersion1(bucket, key)).objectContent.use {
+                it.copyTo(this)
+            }
+            toByteArray()
+        }
+    }
 
     private fun wasClientSideEncrypted(metadata: MutableMap<String, String>) =
         metadata.containsKey(MATERIALS_DESCRIPTION_METADATA_KEY)
 
-    private suspend fun decryptedObjectContents(bucket: String, key: String) = withContext(Dispatchers.IO) {
-        val outputStream = ByteArrayOutputStream()
-        decryptingS3Client.getObject(GetObjectRequestVersion1(bucket, key)).objectContent.use {
-            it.copyTo(outputStream)
-        }
-        outputStream.toByteArray()
-    }
+    private fun wasPreEncrypted(metadata: MutableMap<String, String>): Boolean =
+        listOf(ENCRYPTING_KEY_ID_METADATA_KEY, INITIALISATION_VECTOR_METADATA_KEY, CIPHERTEXT_METADATA_KEY)
+            .all(metadata::containsKey)
 
     private suspend fun objectMetadata(bucket: String, key: String) = withContext(Dispatchers.IO) {
-        val getRequest = getObjectRequest(bucket, key)
-        s3Client.getObject(getRequest).response().metadata()
+        s3Client.getObject(getObjectRequest(bucket, key)).response().metadata()
     }
 
     private fun getObjectRequest(bucket: String, key: String): GetObjectRequest =
@@ -115,5 +147,8 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
     companion object {
         private val logger = DataworksLogger.getLogger(S3ServiceImpl::class)
         private const val MATERIALS_DESCRIPTION_METADATA_KEY = "x-amz-matdesc"
+        private const val ENCRYPTING_KEY_ID_METADATA_KEY = "datakeyencryptionkeyid"
+        private const val INITIALISATION_VECTOR_METADATA_KEY = "iv"
+        private const val CIPHERTEXT_METADATA_KEY = "ciphertext"
     }
 }

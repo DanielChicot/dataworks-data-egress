@@ -24,12 +24,9 @@ class DataworksDataEgressApplication(private val queueService: QueueService,
             while (proceed.get()) {
                 try {
                     queueService.incomingPrefixes()
-                        .map { (receipt, prefixes) ->
-                            Pair(receipt, prefixes.flatMap { dbService.tableEntries(it) })
-                        }
-                        .map { (receiptHandle, egressRequests: List<EgressSpecification>) -> Pair(receiptHandle, egressObjects(egressRequests)) }
-                        .filter { it.second }
-                        .map { it.first }
+                        .map { (receipt, prefixes) -> Pair(receipt, prefixes.flatMap { dbService.tableEntries(it) }) }
+                        .map { (receiptHandle, egressRequests) -> Pair(receiptHandle, egressObjects(egressRequests)) }
+                        .filter { it.second }.map { it.first }
                         .collect(queueService::deleteMessage)
                 } catch (e: Exception) {
                     logger.error("Data egress error", e)
