@@ -41,8 +41,4 @@ class AwsConfiguration(private val encryptionMaterialsProvider: EncryptionMateri
 
     @Bean
     fun dynamoDbClient(): DynamoDbAsyncClient = DynamoDbAsyncClient.create()
-
-    @Bean
-    fun stsClient(): StsAsyncClient = StsAsyncClient.create()
-
 }

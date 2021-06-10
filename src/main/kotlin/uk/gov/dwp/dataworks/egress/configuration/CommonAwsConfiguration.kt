@@ -7,6 +7,8 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.sts.StsAsyncClient
+import software.amazon.awssdk.services.sts.StsClient
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest
 import software.amazon.awssdk.services.sts.model.Credentials
 
@@ -14,22 +16,26 @@ import software.amazon.awssdk.services.sts.model.Credentials
 class CommonAwsConfiguration {
 
     @Bean
-    fun assumedRoleS3ClientProvider(stsAsyncClient: StsAsyncClient): suspend (String) -> S3AsyncClient =
+    fun assumedRoleS3ClientProvider(): suspend (String) -> S3AsyncClient =
         { roleArn: String ->
-            val credentials: Credentials = credentials(stsAsyncClient, roleArn)
+            val stsCredentialsProvider = with (StsAssumeRoleCredentialsProvider.builder()) {
+                refreshRequest(assumeRoleRequest(roleArn))
+                stsClient(stsClient())
+                build()
+            }
+
             with(S3AsyncClient.builder()) {
-                credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create(credentials.accessKeyId(), credentials.secretAccessKey())))
+                credentialsProvider(stsCredentialsProvider)
                 build()
             }
         }
 
-    private suspend fun credentials(stsAsyncClient: StsAsyncClient, arn: String): Credentials =
-        stsAsyncClient.assumeRole(assumeRoleRequest(arn)).await().credentials()
-
     private fun assumeRoleRequest(arn: String): AssumeRoleRequest =
         with(AssumeRoleRequest.builder()) {
             roleArn(arn)
+            roleSessionName("data-egress")
             build()
         }
+
+    private fun stsClient(): StsClient = StsClient.create()
 }

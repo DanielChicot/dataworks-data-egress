@@ -56,9 +56,6 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
     @Bean
     fun dynamoDbClient(): DynamoDbAsyncClient = DynamoDbAsyncClient.builder().localstack()
 
-    @Bean
-    fun stsClient(): StsAsyncClient = StsAsyncClient.builder().localstack()
-
     fun <B: AwsClientBuilder<B, C>?, C> AwsClientBuilder<B, C>.localstack(): C =
         run {
             region(Region.EU_WEST_2)

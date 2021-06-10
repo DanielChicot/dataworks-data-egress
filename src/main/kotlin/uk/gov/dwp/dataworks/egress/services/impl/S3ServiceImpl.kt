@@ -64,7 +64,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
 
     private fun putObjectRequest(specification: EgressSpecification,
                                  key: String): PutObjectRequest =
-        with (PutObjectRequest.builder()) {
+        with(PutObjectRequest.builder()) {
             bucket(specification.destinationBucket)
             key(targetKey(specification, key))
             build()
@@ -78,7 +78,9 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
     private suspend fun egressClient(specification: EgressSpecification): S3AsyncClient =
         specification.roleArn?.let {
             assumedRoleS3ClientProvider(specification.roleArn)
-        } ?: s3AsyncClient
+        } ?: run {
+            s3AsyncClient
+        }
 
     private fun targetContents(metadata: Map<String, String>,
                                specification: EgressSpecification,
@@ -91,24 +93,33 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                                        key: String): ByteArray {
         val metadataPairs = metadata.entries.map { (k, v) -> Pair(k, v) }.toTypedArray()
 
-        return when  {
+        return when {
             wasClientSideEncrypted(metadata) -> {
-                logger.info("Found client side encrypted object", "bucket" to specification.sourceBucket, "key" to key, *metadataPairs)
+                logger.info("Found client side encrypted object",
+                    "bucket" to specification.sourceBucket,
+                    "key" to key,
+                    *metadataPairs)
                 clientSideEncryptedObjectContents(specification.sourceBucket, key)
             }
             wasPreEncrypted(metadata) -> {
-                logger.info("Found pre-encrypted object", "bucket" to specification.sourceBucket, "key" to key, *metadataPairs)
+                logger.info("Found pre-encrypted object",
+                    "bucket" to specification.sourceBucket,
+                    "key" to key,
+                    *metadataPairs)
                 preEncryptedObjectContents(specification.sourceBucket, key)
             }
             else -> {
-                logger.info("Found unknown object", "bucket" to specification.sourceBucket, "key" to key, *metadataPairs)
+                logger.info("Found unknown object",
+                    "bucket" to specification.sourceBucket,
+                    "key" to key,
+                    *metadataPairs)
                 ByteArray(0)
             }
         }
     }
 
     private suspend fun preEncryptedObjectContents(bucket: String, key: String): ByteArray =
-        with (s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await()) {
+        with(s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await()) {
             val metadata = response().metadata()
             val iv = metadata[INITIALISATION_VECTOR_METADATA_KEY]
             val encryptingKeyId = metadata[ENCRYPTING_KEY_ID_METADATA_KEY]
@@ -152,3 +163,4 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
         private const val CIPHERTEXT_METADATA_KEY = "ciphertext"
     }
 }
+
