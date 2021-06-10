@@ -7,7 +7,7 @@ services:
       - 4566:4566
     container_name: localstack
     environment:
-      - SERVICES=s3,sqs,dynamodb
+      - SERVICES=dynamodb,s3,sqs
 
   localstack-init:
     image: localstack-init

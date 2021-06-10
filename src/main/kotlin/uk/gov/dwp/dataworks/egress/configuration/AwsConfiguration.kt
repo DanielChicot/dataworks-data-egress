@@ -5,19 +5,15 @@ import com.amazonaws.services.s3.AmazonS3EncryptionV2
 import com.amazonaws.services.s3.model.CryptoConfigurationV2
 import com.amazonaws.services.s3.model.CryptoMode
 import com.amazonaws.services.s3.model.EncryptionMaterialsProvider
-import kotlinx.coroutines.future.await
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
-import software.amazon.awssdk.services.sts.StsAsyncClient
-import software.amazon.awssdk.services.sts.model.AssumeRoleRequest
-import software.amazon.awssdk.services.sts.model.Credentials
+import software.amazon.awssdk.services.sts.StsClient
+import uk.gov.dwp.dataworks.egress.configuration.StsUtility.credentialsProvider
 
 @Configuration
 @Profile("!LOCALSTACK")
@@ -41,4 +37,15 @@ class AwsConfiguration(private val encryptionMaterialsProvider: EncryptionMateri
 
     @Bean
     fun dynamoDbClient(): DynamoDbAsyncClient = DynamoDbAsyncClient.create()
+
+    @Bean
+    fun assumedRoleS3ClientProvider(): suspend (String) -> S3AsyncClient {
+        val stsClient = StsClient.create()
+        return { roleArn: String ->
+            with(S3AsyncClient.builder()) {
+                credentialsProvider(credentialsProvider(stsClient, roleArn))
+                build()
+            }
+        }
+    }
 }

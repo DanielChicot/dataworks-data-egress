@@ -4,8 +4,6 @@ import com.amazonaws.ClientConfiguration
 import com.amazonaws.Protocol
 import com.amazonaws.auth.AWSStaticCredentialsProvider
 import com.amazonaws.auth.BasicAWSCredentials
-import com.amazonaws.services.s3.AmazonS3
-import com.amazonaws.services.s3.AmazonS3Builder
 import com.amazonaws.services.s3.AmazonS3EncryptionClientV2
 import com.amazonaws.services.s3.AmazonS3EncryptionV2
 import com.amazonaws.services.s3.model.CryptoConfigurationV2
@@ -22,7 +20,8 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
-import software.amazon.awssdk.services.sts.StsAsyncClient
+import software.amazon.awssdk.services.sts.StsClient
+import uk.gov.dwp.dataworks.egress.configuration.StsUtility.credentialsProvider
 import java.net.URI
 import com.amazonaws.client.builder.AwsClientBuilder as AwsClientBuilderV1
 
@@ -55,6 +54,18 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
 
     @Bean
     fun dynamoDbClient(): DynamoDbAsyncClient = DynamoDbAsyncClient.builder().localstack()
+
+    @Bean
+    fun assumedRoleS3ClientProvider(): suspend (String) -> S3AsyncClient {
+        val stsClient = StsClient.builder().localstack()
+        return { roleArn: String ->
+            with(S3AsyncClient.builder()) {
+                credentialsProvider(credentialsProvider(stsClient, roleArn))
+                localstack()
+                build()
+            }
+        }
+    }
 
     fun <B: AwsClientBuilder<B, C>?, C> AwsClientBuilder<B, C>.localstack(): C =
         run {
