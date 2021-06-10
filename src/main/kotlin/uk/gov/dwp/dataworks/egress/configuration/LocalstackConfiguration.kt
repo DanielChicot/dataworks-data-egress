@@ -19,7 +19,10 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.s3.S3AsyncClient
+import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
+import software.amazon.awssdk.services.sts.StsAsyncClient
 import java.net.URI
 import com.amazonaws.client.builder.AwsClientBuilder as AwsClientBuilderV1
 
@@ -28,7 +31,7 @@ import com.amazonaws.client.builder.AwsClientBuilder as AwsClientBuilderV1
 class LocalstackConfiguration(private val encryptionMaterialsProvider: EncryptionMaterialsProvider) {
 
     @Bean
-    fun encryptingS3Client(): AmazonS3EncryptionV2 =
+    fun decryptingS3Client(): AmazonS3EncryptionV2 =
             with (AmazonS3EncryptionClientV2.encryptionBuilder()) {
                 withPathStyleAccessEnabled(true)
                 disableChunkedEncoding()
@@ -40,22 +43,21 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
                 build()
             }
 
-//    @Bean
-//    fun s3Client(): AmazonS3 =
-//        with (AmazonS3Builder.st) {
-//            withEncryptionMaterialsProvider(encryptionMaterialsProvider)
-//            withCryptoConfiguration(CryptoConfigurationV2().withCryptoMode(CryptoMode.AuthenticatedEncryption))
-//            withEndpointConfiguration(AwsClientBuilderV1.EndpointConfiguration(localstackEndpoint, "eu-west-2"))
-//            withClientConfiguration(ClientConfiguration().withProtocol(Protocol.HTTP))
-//            withCredentials(AWSStaticCredentialsProvider(BasicAWSCredentials(localstackAccessKeyId, localstackSecretAccessKey)))
-//            build()
-//        }
 
     @Bean
     fun sqsClient(): SqsAsyncClient = SqsAsyncClient.builder().localstack()
 
     @Bean
+    fun s3AsyncClient(): S3AsyncClient = S3AsyncClient.builder().localstack()
+
+    @Bean
+    fun s3Client(): S3Client = S3Client.builder().localstack()
+
+    @Bean
     fun dynamoDbClient(): DynamoDbAsyncClient = DynamoDbAsyncClient.builder().localstack()
+
+    @Bean
+    fun stsClient(): StsAsyncClient = StsAsyncClient.builder().localstack()
 
     fun <B: AwsClientBuilder<B, C>?, C> AwsClientBuilder<B, C>.localstack(): C =
         run {
@@ -68,11 +70,9 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
     private fun credentialsProvider() =
         StaticCredentialsProvider.create(AwsBasicCredentials.create(localstackAccessKeyId,localstackSecretAccessKey))
 
-
     companion object {
         private const val localstackEndpoint = "http://localstack:4566/"
         private const val localstackAccessKeyId = "accessKeyId"
         private const val localstackSecretAccessKey = "secretAccessKey"
     }
-
 }

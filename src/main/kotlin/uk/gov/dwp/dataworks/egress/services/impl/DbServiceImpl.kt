@@ -1,12 +1,11 @@
 package uk.gov.dwp.dataworks.egress.services.impl
 
 import kotlinx.coroutines.future.await
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest
-import uk.gov.dwp.dataworks.egress.domain.DataEgressTableEntry
+import uk.gov.dwp.dataworks.egress.domain.EgressSpecification
 import uk.gov.dwp.dataworks.egress.services.DbService
 import java.text.SimpleDateFormat
 import java.util.*
@@ -15,13 +14,13 @@ import java.util.*
 class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
                     private val dataEgressTable: String): DbService {
 
-    override suspend fun tableEntries(prefix: String): List<DataEgressTableEntry> =
+    override suspend fun tableEntries(prefix: String): List<EgressSpecification> =
         entries().filter {
             it[SOURCE_PREFIX_COLUMN]?.s()
                 ?.replace(TODAYS_DATE_PLACEHOLDER, todaysDate())
                 ?.replace(Regex("""\*$"""), "")?.let(prefix::startsWith) ?: false
         }.map {
-            DataEgressTableEntry(
+            EgressSpecification(
                 sourceBucket = attributeStringValue(it, SOURCE_BUCKET_COLUMN),
                 sourcePrefix = attributeStringValue(it, SOURCE_PREFIX_COLUMN),
                 destinationBucket = attributeStringValue(it, DESTINATION_BUCKET_COLUMN),
