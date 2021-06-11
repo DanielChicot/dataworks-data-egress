@@ -37,7 +37,7 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
                     }
                 }
             } else {
-                logger.debug("Nothing on the queue")
+                logger.info("Nothing on the queue")
                 delay(Duration.milliseconds(sqsCheckIntervalMs))
             }
         }

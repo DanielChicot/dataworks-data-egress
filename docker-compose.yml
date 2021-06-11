@@ -1,6 +1,7 @@
 version: "3.3"
 
 services:
+
   localstack:
     image: localstack/localstack:latest
     ports:
@@ -24,3 +25,33 @@ services:
     build:
       context: images/dks
     container_name: dks
+
+  dataworks-data-egress:
+    image: dataworks-data-egress
+    build:
+      context: .
+    container_name: dataworks-data-egress
+    environment:
+      - AWS_REGION=eu-west-2
+      - AWS_SQS_QUEUE_URL=http://localstack:4566/000000000000/integration-queue
+      - DKS_URL=https://dks:8443
+      - FETCH_ACM_CERTS=false
+      - SECURITY_IDENTITY_KEY_PASSWORD=changeit
+      - SECURITY_IDENTITY_STORE=development-keystore.jks
+      - SECURITY_IDENTITY_STORE_ALIAS=cid
+      - SECURITY_IDENTITY_STORE_PASSWORD=changeit
+      - SECURITY_TRUST_STORE=development-truststore.jks
+      - SECURITY_TRUST_STORE_PASSWORD=changeit
+      - SPRING_MAIN_BANNER_MODE=off
+      - SPRING_PROFILES_ACTIVE=LOCALSTACK
+
+  dataworks-data-egress-integration-tests:
+    image: dataworks-data-egress-integration-tests
+    build:
+      context: .
+      dockerfile: images/tests/Dockerfile
+    container_name: dataworks-data-egress-integration-tests
+    command: "gradle integration"
+    environment:
+      - AWS_REGION=eu-west-2
+      - SPRING_PROFILES_ACTIVE=LOCALSTACK

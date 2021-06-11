@@ -13,7 +13,15 @@ import javax.net.ssl.SSLContext
 
 
 @Component
-class SecureHttpClientProvider : HttpClientProvider {
+class SecureHttpClientProvider(private val identityStore: String,
+                               private val identityStorePassword: String,
+                               private val identityStoreAlias: String,
+                               private val identityKeyPassword: String,
+                               private val trustStore: String,
+                               private val trustStorePassword: String,
+                               private val connectTimeout: Int,
+                               private val connectionRequestTimeout: Int,
+                               private val socketTimeout: Int) : HttpClientProvider {
 
     override fun client(): CloseableHttpClient =
         HttpClients.custom().run {
@@ -47,32 +55,4 @@ class SecureHttpClientProvider : HttpClientProvider {
             loadTrustMaterial(File(trustStore), trustStorePassword.toCharArray())
             build()
         }
-
-    @Value("\${security.identityStore}")
-    private lateinit var identityStore: String
-
-    @Value("\${security.identityStorePassword}")
-    private lateinit var identityStorePassword: String
-
-    @Value("\${security.identityStoreAlias}")
-    private lateinit var identityStoreAlias: String
-
-    @Value("\${security.identityKeyPassword}")
-    private lateinit var identityKeyPassword: String
-
-    @Value("\${security.trustStore}")
-    private lateinit var trustStore: String
-
-    @Value("\${security.trustStorePassword}")
-    private lateinit var trustStorePassword: String
-
-    @Value("\${security.connectTimeout:300000}")
-    private lateinit var connectTimeout: String
-
-    @Value("\${security.connectionRequestTimeout:300000}")
-    private lateinit var connectionRequestTimeout: String
-
-    @Value("\${security.socketTimeout:300000}")
-    private lateinit var socketTimeout: String
-
 }

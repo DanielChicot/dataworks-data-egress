@@ -4,6 +4,7 @@ import com.amazonaws.ClientConfiguration
 import com.amazonaws.Protocol
 import com.amazonaws.auth.AWSStaticCredentialsProvider
 import com.amazonaws.auth.BasicAWSCredentials
+import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3EncryptionClientV2
 import com.amazonaws.services.s3.AmazonS3EncryptionV2
 import com.amazonaws.services.s3.model.CryptoConfigurationV2
@@ -36,7 +37,7 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
                 disableChunkedEncoding()
                 withEncryptionMaterialsProvider(encryptionMaterialsProvider)
                 withCryptoConfiguration(CryptoConfigurationV2().withCryptoMode(CryptoMode.AuthenticatedEncryption))
-                withEndpointConfiguration(AwsClientBuilderV1.EndpointConfiguration(localstackEndpoint, "eu-west-2"))
+                withEndpointConfiguration(AwsClientBuilderV1.EndpointConfiguration(localstackEndpoint, localstackSigningRegion))
                 withClientConfiguration(ClientConfiguration().withProtocol(Protocol.HTTP))
                 withCredentials(AWSStaticCredentialsProvider(BasicAWSCredentials(localstackAccessKeyId, localstackSecretAccessKey)))
                 build()
@@ -62,7 +63,6 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
             with(S3AsyncClient.builder()) {
                 credentialsProvider(credentialsProvider(stsClient, roleArn))
                 localstack()
-                build()
             }
         }
     }
@@ -79,6 +79,7 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
         StaticCredentialsProvider.create(AwsBasicCredentials.create(localstackAccessKeyId,localstackSecretAccessKey))
 
     companion object {
+        private const val localstackSigningRegion = "eu-west-2"
         private const val localstackEndpoint = "http://localstack:4566/"
         private const val localstackAccessKeyId = "accessKeyId"
         private const val localstackSecretAccessKey = "secretAccessKey"

@@ -22,7 +22,8 @@ import java.net.URLEncoder
 import java.util.*
 
 @Service
-class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider): DataKeyService {
+class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider,
+                         private val dksUrl: String): DataKeyService {
 
     @Override
     @Retryable(value = [DataKeyServiceUnavailableException::class],
@@ -39,7 +40,7 @@ class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider): Da
     }
 
     private fun dataKey(): DataKeyResult {
-        val dksUrl = "$dataKeyServiceUrl/datakey"
+        val dksUrl = "$dksUrl/datakey"
         val dksCorrelationId = UUID.randomUUID().toString()
         val dksUrlWithCorrelationId = "$dksUrl?correlationId=$dksCorrelationId"
         try {
@@ -91,7 +92,7 @@ class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider): Da
                 decryptedKeyCache[cacheKey]!!
             } else {
                 httpClientProvider.client().use { client ->
-                    val dksUrl = "$dataKeyServiceUrl/datakey/actions/decrypt?keyId=${
+                    val dksUrl = "$dksUrl/datakey/actions/decrypt?keyId=${
                         URLEncoder.encode(encryptionKeyId, "US-ASCII")
                     }"
                     val dksUrlWithCorrelationId = "$dksUrl&correlationId=$dksCorrelationId"
@@ -150,9 +151,6 @@ class DataKeyServiceImpl(private val httpClientProvider: HttpClientProvider): Da
     private var decryptedKeyCache = mutableMapOf<String, String>()
 
     private var dataKeyResult: DataKeyResult? = null
-
-    @Value("\${dks.url}")
-    private lateinit var dataKeyServiceUrl: String
 
     companion object {
         private val logger: DataworksLogger = DataworksLogger.getLogger(DataKeyServiceImpl::class.java)

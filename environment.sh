@@ -9,18 +9,15 @@ main() {
     extract_public_certificate dataworks-data-egress-keystore.jks
     make_truststore dataworks-data-egress.crt
 
-    make_keystore dataworks-data-egress-tests-keystore.jks
-    extract_public_certificate dataworks-data-egress-tests-keystore.jks
-    make_truststore dataworks-data-egress-tests.crt
+    make_keystore dataworks-data-egress-integration-tests-keystore.jks
+    extract_public_certificate dataworks-data-egress-integration-tests-keystore.jks
+    make_truststore dataworks-data-egress-integration-tests.crt
 
     import_into_truststore dks-truststore.jks dataworks-data-egress.crt
-    import_into_truststore dks-truststore.jks dataworks-data-egress-tests.crt
+    import_into_truststore dks-truststore.jks dataworks-data-egress-integration-tests.crt
 
     import_into_truststore dataworks-data-egress-truststore.jks dks.crt
-    import_into_truststore dataworks-data-egress-tests-truststore.jks dks.crt
-
-    mv -v dataworks-data-egress-tests-keystore.jks images/tests
-    mv -v dataworks-data-egress-tests-truststore.jks images/tests
+    import_into_truststore dataworks-data-egress-integration-tests-truststore.jks dks.crt
 
     mv -v dks-truststore.jks images/dks
     mv -v dks-keystore.jks images/dks

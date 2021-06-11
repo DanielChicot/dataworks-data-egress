@@ -1,1 +1,1 @@
-rootProject.name = "egress"
+rootProject.name = "dataworks-data-egress"

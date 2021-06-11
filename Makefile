@@ -42,9 +42,9 @@ terraform-apply: ## Run `terraform apply` from repo root
 terraform-workspace-new: ## Creates new Terraform workspace with Concourse remote execution. Run `terraform-workspace-new workspace=<workspace_name>`
 	fly -t aws-concourse execute --config create-workspace.yml --input repo=. -v workspace="$(workspace)"
 
-.PHONY: tests
-tests:
-	@tox
+certificates:
+	./generate-certificates.sh
+
 localstack:
 	docker-compose up -d localstack
 	@{ \
@@ -59,3 +59,9 @@ dks:
 	docker-compose up -d dks
 
 services: localstack dks
+
+dataworks-data-egress: services
+	docker-compose up -d dataworks-data-egress
+
+integration-tests: dataworks-data-egress
+	docker-compose up dataworks-data-egress-integration-tests
