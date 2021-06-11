@@ -17,11 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@master
 
-      - name: Install Tox
-        run: pip install tox
-
       - name: unit-tests
-        run: make tests
+        run: |
+          make certificates
+          make integration-tests
 
   get-publish-version:
     runs-on: ubuntu-latest

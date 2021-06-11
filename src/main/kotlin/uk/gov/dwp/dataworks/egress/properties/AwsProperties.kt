@@ -11,7 +11,7 @@ class AwsProperties(var sqsQueueUrl: String = "",
                     var dataEgressTable: String = "data-egress") {
 
     @Bean
-    fun sqsQueueUrl() = sqsQueueUrl
+    fun sqsQueueUrl() = sqsQueueUrl.ifBlank { System.getenv("sqs_url") ?: "" }
 
     @Bean
     fun sqsCheckIntervalMs() = sqsCheckIntervalMs

@@ -95,6 +95,7 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
     private fun getQueueAttributesRequest(): GetQueueAttributesRequest? =
         with(GetQueueAttributesRequest.builder()) {
             queueUrl(sqsQueueUrl)
+            attributeNames(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES)
             build()
         }
 

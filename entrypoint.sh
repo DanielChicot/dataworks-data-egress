@@ -17,23 +17,27 @@ HOSTNAME=$(hostname)
 
 if [ "${FETCH_ACM_CERTS:-true}" = "true" ]; then
 
+    KEYSTORE_DIRECTORY="$(mktemp -d)"
+
     export SECURITY_KEY_PASSWORD="$(uuidgen)"
-    export SECURITY_KEYSTORE="/dataworks-data-egress/keystore.jks"
+    export SECURITY_KEYSTORE="$KEYSTORE_DIRECTORY/keystore.jks"
     export SECURITY_KEYSTORE_PASSWORD="$(uuidgen)"
-    export SECURITY_TRUSTSTORE="/dataworks-data-egress/truststore.jks"
+    export SECURITY_KEYSTORE_ALIAS="${private_key_alias}"
+
+    export SECURITY_TRUSTSTORE="$KEYSTORE_DIRECTORY/truststore.jks"
     export SECURITY_TRUSTSTORE_PASSWORD="$(uuidgen)"
     export RETRIEVER_ACM_KEY_PASSPHRASE="$(uuidgen)"
 
     acm-cert-retriever \
         --acm-cert-arn "${acm_cert_arn}" \
-        --log-level "${LOG_LEVEL}" \
+        --log-level INFO \
         --acm-key-passphrase "${RETRIEVER_ACM_KEY_PASSPHRASE}" \
-        --keystore-path "${SECURITY_KEYSTORE}" \
-        --keystore-password "${SECURITY_KEYSTORE_PASSWORD}" \
-        --private-key-password "${SECURITY_KEY_PASSWORD}" \
-        --truststore-path "${SECURITY_TRUSTSTORE}" \
-        --truststore-password "${SECURITY_TRUSTSTORE_PASSWORD}" \
-        --private-key-alias "${private_key_alias}" \
+        --keystore-path "$SECURITY_KEYSTORE" \
+        --keystore-password "$SECURITY_KEYSTORE_PASSWORD" \
+        --private-key-password "$SECURITY_KEY_PASSWORD" \
+        --truststore-path "$SECURITY_TRUSTSTORE" \
+        --truststore-password "$SECURITY_TRUSTSTORE_PASSWORD" \
+        --private-key-alias "$SECURITY_KEYSTORE_ALIAS" \
         --truststore-aliases "${truststore_aliases}" \
         --truststore-certs "${truststore_certs}"
 
@@ -42,4 +46,5 @@ else
     echo "Skipping cert generation "
 fi
 
+export SPRING_MAIN_BANNER_MODE=off
 exec "${@}"

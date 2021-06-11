@@ -13,7 +13,7 @@ object StsUtility {
             build()
         }
 
-    fun assumeRoleRequest(arn: String): AssumeRoleRequest =
+    private fun assumeRoleRequest(arn: String): AssumeRoleRequest =
         with(AssumeRoleRequest.builder()) {
             roleArn(arn)
             roleSessionName("data-egress")

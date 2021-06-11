@@ -38,14 +38,4 @@ class AwsConfiguration(private val encryptionMaterialsProvider: EncryptionMateri
     @Bean
     fun dynamoDbClient(): DynamoDbAsyncClient = DynamoDbAsyncClient.create()
 
-    @Bean
-    fun assumedRoleS3ClientProvider(): suspend (String) -> S3AsyncClient {
-        val stsClient = StsClient.create()
-        return { roleArn: String ->
-            with(S3AsyncClient.builder()) {
-                credentialsProvider(credentialsProvider(stsClient, roleArn))
-                build()
-            }
-        }
-    }
 }

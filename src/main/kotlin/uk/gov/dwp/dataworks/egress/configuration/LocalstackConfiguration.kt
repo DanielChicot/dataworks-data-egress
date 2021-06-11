@@ -56,17 +56,6 @@ class LocalstackConfiguration(private val encryptionMaterialsProvider: Encryptio
     @Bean
     fun dynamoDbClient(): DynamoDbAsyncClient = DynamoDbAsyncClient.builder().localstack()
 
-    @Bean
-    fun assumedRoleS3ClientProvider(): suspend (String) -> S3AsyncClient {
-        val stsClient = StsClient.builder().localstack()
-        return { roleArn: String ->
-            with(S3AsyncClient.builder()) {
-                credentialsProvider(credentialsProvider(stsClient, roleArn))
-                localstack()
-            }
-        }
-    }
-
     fun <B: AwsClientBuilder<B, C>?, C> AwsClientBuilder<B, C>.localstack(): C =
         run {
             region(Region.EU_WEST_2)

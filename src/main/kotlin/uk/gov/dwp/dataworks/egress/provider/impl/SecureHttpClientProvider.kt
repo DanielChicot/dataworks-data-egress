@@ -13,12 +13,12 @@ import javax.net.ssl.SSLContext
 
 
 @Component
-class SecureHttpClientProvider(private val identityStore: String,
-                               private val identityStorePassword: String,
-                               private val identityStoreAlias: String,
-                               private val identityKeyPassword: String,
-                               private val trustStore: String,
-                               private val trustStorePassword: String,
+class SecureHttpClientProvider(private val keystore: String,
+                               private val keystorePassword: String,
+                               private val keystoreAlias: String,
+                               private val keyPassword: String,
+                               private val truststore: String,
+                               private val truststorePassword: String,
                                private val connectTimeout: Int,
                                private val connectionRequestTimeout: Int,
                                private val socketTimeout: Int) : HttpClientProvider {
@@ -33,9 +33,9 @@ class SecureHttpClientProvider(private val identityStore: String,
 
     private fun requestConfig(): RequestConfig =
         RequestConfig.custom().run {
-            setConnectTimeout(connectTimeout.toInt())
-            setConnectionRequestTimeout(connectionRequestTimeout.toInt())
-            setSocketTimeout(socketTimeout.toInt())
+            setConnectTimeout(connectTimeout)
+            setConnectionRequestTimeout(connectionRequestTimeout)
+            setSocketTimeout(socketTimeout)
             build()
         }
 
@@ -49,10 +49,10 @@ class SecureHttpClientProvider(private val identityStore: String,
     private fun sslContext(): SSLContext =
         SSLContexts.custom().run {
             loadKeyMaterial(
-                File(identityStore),
-                identityStorePassword.toCharArray(),
-                identityKeyPassword.toCharArray()) { _, _ -> identityStoreAlias }
-            loadTrustMaterial(File(trustStore), trustStorePassword.toCharArray())
+                File(keystore),
+                keystorePassword.toCharArray(),
+                keyPassword.toCharArray()) { _, _ -> keystoreAlias }
+            loadTrustMaterial(File(truststore), truststorePassword.toCharArray())
             build()
         }
 }

@@ -6,34 +6,33 @@ import org.springframework.context.annotation.Configuration
 
 @Configuration
 @ConfigurationProperties(prefix = "security")
-class SecurityProperties(var identityStore: String = "",
-                         var identityStorePassword: String = "",
-                         var identityStoreAlias: String = "",
-                         var identityKeyPassword: String = "",
-                         var trustStore: String = "",
-                         var trustStorePassword: String = "",
+class SecurityProperties(var keystore: String = "",
+                         var keystorePassword: String = "",
+                         var keystoreAlias: String = "",
+                         var keyPassword: String = "",
+                         var truststore: String = "",
+                         var truststorePassword: String = "",
                          var connectTimeout: Int = 300_000,
                          var connectionRequestTimeout: Int = 300_000,
                          var socketTimeout: Int = 300_000) {
 
+    @Bean
+    fun keystore() = keystore
 
     @Bean
-    fun identityStore() = identityStore
+    fun keystorePassword(): String = keystorePassword
 
     @Bean
-    fun identityStorePassword(): String = identityStorePassword
+    fun keystoreAlias(): String = keystoreAlias
 
     @Bean
-    fun identityStoreAlias(): String = identityStoreAlias
+    fun keyPassword(): String = keyPassword
 
     @Bean
-    fun identityKeyPassword(): String = identityKeyPassword
+    fun truststore(): String = truststore
 
     @Bean
-    fun trustStore(): String = trustStore
-
-    @Bean
-    fun trustStorePassword(): String = trustStorePassword
+    fun truststorePassword(): String = truststorePassword
 
     @Bean
     fun connectTimeout(): Int = connectTimeout

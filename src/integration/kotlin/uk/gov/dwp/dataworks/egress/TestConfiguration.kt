@@ -26,22 +26,22 @@ import uk.gov.dwp.dataworks.egress.services.impl.DataKeyServiceImpl
 @PropertySource("classpath:integration.properties")
 class TestConfiguration {
     @Bean
-    fun identityStore() = "dataworks-data-egress-integration-tests-keystore.jks"
+    fun keystore() = "dataworks-data-egress-integration-tests-keystore.jks"
 
     @Bean
-    fun identityStorePassword(): String = "changeit"
+    fun keystorePassword(): String = "changeit"
 
     @Bean
-    fun identityStoreAlias(): String = "cid"
+    fun keystoreAlias(): String = "cid"
 
     @Bean
-    fun identityKeyPassword(): String = "changeit"
+    fun keyPassword(): String = "changeit"
 
     @Bean
-    fun trustStore(): String = "dataworks-data-egress-integration-tests-truststore.jks"
+    fun truststore(): String = "dataworks-data-egress-integration-tests-truststore.jks"
 
     @Bean
-    fun trustStorePassword(): String = "changeit"
+    fun truststorePassword(): String = "changeit"
 
     @Bean
     fun connectTimeout(): Int = 300_000
