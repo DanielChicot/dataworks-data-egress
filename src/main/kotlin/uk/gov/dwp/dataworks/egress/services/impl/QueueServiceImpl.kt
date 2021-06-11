@@ -20,7 +20,6 @@ import kotlin.time.ExperimentalTime
 @Service
 class QueueServiceImpl(private val sqs: SqsAsyncClient,
                        private val sqsQueueUrl: String,
-                       private val sqsMaxReceptions: Int,
                        private val sqsCheckIntervalMs: Int): QueueService {
 
     override suspend fun incomingPrefixes(): Flow<Pair<String, List<String>>> = flow {
@@ -29,22 +28,16 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
                 val response = sqs.receiveMessage(receiveMessageRequest()).await()
                 if (response.hasMessages()) {
                     val message = response.messages().first()
-                    if (receptions(message.attributes()) < sqsMaxReceptions) {
-                        val receiptHandle = message.receiptHandle()
-                        sqs.changeMessageVisibility(changeMessageVisibilityRequest(receiptHandle)).await()
-                        logger.info("Message received", "body" to escaped(message))
-                        val body = gson.jsonObject(message.body())
-                        if (body.has("Records")) {
-                            emit(Pair(receiptHandle, messagePrefixes(body)))
-                        }
-                    } else {
-                        logger.warn("Ignoring message", "receptions" to "${receptions(message.attributes())}",
-                            "max_receptions" to "$sqsMaxReceptions")
+                    val receiptHandle = message.receiptHandle()
+                    sqs.changeMessageVisibility(changeMessageVisibilityRequest(receiptHandle)).await()
+                    logger.info("Message received", "body" to escaped(message))
+                    val body = gson.jsonObject(message.body())
+                    if (body.has("Records")) {
+                        emit(Pair(receiptHandle, messagePrefixes(body)))
                     }
-
                 }
             } else {
-                logger.info("Nothing on the queue")
+                logger.debug("Nothing on the queue")
                 delay(Duration.milliseconds(sqsCheckIntervalMs))
             }
         }
@@ -108,11 +101,12 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
     private fun escaped(message: Message): String =
         with (JsonObject()) {
             addProperty("message", message.body())
-            Gson().toJson(this)
+            Gson().toJson(this["message"])
         }
 
     companion object {
         private val gson = Gson()
         private val logger: DataworksLogger = DataworksLogger.getLogger(QueueServiceImpl::class.java)
     }
+
 }

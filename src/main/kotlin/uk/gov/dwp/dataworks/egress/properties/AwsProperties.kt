@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Configuration
 @ConfigurationProperties(prefix = "aws")
 class AwsProperties(var sqsQueueUrl: String = "",
                     var sqsCheckIntervalMs: Int = 10_000,
-                    var sqsMaxReceptions: Int = 10,
                     var dataEgressTable: String = "data-egress") {
 
     @Bean
@@ -19,7 +18,4 @@ class AwsProperties(var sqsQueueUrl: String = "",
 
     @Bean
     fun dataEgressTable() = dataEgressTable
-
-    @Bean
-    fun sqsMaxReceptions() = sqsMaxReceptions
 }
