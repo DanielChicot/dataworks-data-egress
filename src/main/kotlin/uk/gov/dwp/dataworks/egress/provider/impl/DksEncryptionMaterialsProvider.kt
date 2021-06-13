@@ -14,13 +14,13 @@ class DksEncryptionMaterialsProvider(private val dataKeyService: DataKeyService)
     override fun getEncryptionMaterials(materialsDescription: MutableMap<String, String>?): EncryptionMaterials {
         if (materialsDescription == null) {
             logger.info("Received null materials, using default")
-            return getEncryptionMaterials()
+            return encryptionMaterials
         }
         val keyId = materialsDescription[METADATA_KEYID]
         val encryptedKey = materialsDescription[METADATA_ENCRYPTED_KEY]
         logger.info("Received encryption materials", "keyId" to (keyId ?: ""), "encryptedKey" to (encryptedKey ?: ""))
         return if (null == keyId && null == encryptedKey) {
-            getEncryptionMaterials()
+            encryptionMaterials
         } else {
             getMaterialForDecryption(keyId!!, encryptedKey!!)
         }

@@ -43,10 +43,6 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
             }
         }
 
-    private fun receptions(attributes: MutableMap<MessageSystemAttributeName, String>): Int =
-        (attributes[MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT] ?: "1").toInt()
-
-
     override suspend fun deleteMessage(receiptHandle: String): DeleteMessageResponse =
         sqs.deleteMessage(deleteMessageRequest(receiptHandle)).asDeferred().await()
 

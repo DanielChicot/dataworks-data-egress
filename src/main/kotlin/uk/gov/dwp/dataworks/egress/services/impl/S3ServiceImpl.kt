@@ -48,8 +48,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             logger.info("Got metadata", "metadata" to "$metadata")
             val sourceContents = sourceContents(metadata, specification, key)
             val targetContents = targetContents(metadata, specification, sourceContents)
-
-            val request = if (wasClientSideEncrypted(metadata) && !specification.decrypt) {
+            val request = if (wasPreEncrypted(metadata) && !specification.decrypt) {
                 putObjectRequestWithEncryptionMetadata(specification, key, metadata)
             } else {
                 putObjectRequest(specification, key)

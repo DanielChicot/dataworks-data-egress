@@ -5,13 +5,11 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import uk.gov.dwp.dataworks.egress.domain.EncryptionResult
 import uk.gov.dwp.dataworks.egress.services.CipherService
-import uk.gov.dwp.dataworks.logging.DataworksLogger
 import java.security.Key
 import java.security.SecureRandom
 import java.security.Security
 import java.util.*
 import javax.crypto.Cipher
-import javax.crypto.CipherOutputStream
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
@@ -48,8 +46,4 @@ class CipherServiceImpl(private val secureRandom: SecureRandom): CipherService {
 
     @Value("\${cipher.transformation:AES/CTR/NoPadding}")
     private lateinit var cipherTransformation: String
-
-    companion object {
-        val logger = DataworksLogger.getLogger(CipherServiceImpl::class)
-    }
 }

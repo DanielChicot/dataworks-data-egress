@@ -4,7 +4,6 @@ import com.amazonaws.ClientConfiguration
 import com.amazonaws.Protocol
 import com.amazonaws.auth.AWSStaticCredentialsProvider
 import com.amazonaws.auth.BasicAWSCredentials
-import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3EncryptionClientV2
 import com.amazonaws.services.s3.AmazonS3EncryptionV2
 import com.amazonaws.services.s3.model.CryptoConfigurationV2
@@ -21,8 +20,6 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
-import software.amazon.awssdk.services.sts.StsClient
-import uk.gov.dwp.dataworks.egress.configuration.StsUtility.credentialsProvider
 import java.net.URI
 import com.amazonaws.client.builder.AwsClientBuilder as AwsClientBuilderV1
 

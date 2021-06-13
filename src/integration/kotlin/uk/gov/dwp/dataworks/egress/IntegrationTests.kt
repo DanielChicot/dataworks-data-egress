@@ -3,12 +3,14 @@ package uk.gov.dwp.dataworks.egress
 import com.amazonaws.services.s3.AmazonS3EncryptionV2
 import com.amazonaws.services.s3.model.ObjectMetadata
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.time.withTimeout
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import software.amazon.awssdk.core.ResponseBytes
 import software.amazon.awssdk.core.async.AsyncRequestBody
 import software.amazon.awssdk.core.async.AsyncResponseTransformer
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
@@ -17,6 +19,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
+import software.amazon.awssdk.services.s3.model.GetObjectResponse
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
@@ -38,7 +41,6 @@ import com.amazonaws.services.s3.model.PutObjectRequest as PutObjectRequestVersi
 class IntegrationTests: StringSpec() {
 
 
-
     init {
 
         "Should process client-side-encrypted encrypted files" {
@@ -51,7 +53,7 @@ class IntegrationTests: StringSpec() {
             verifyEgress(sourceContents, identifier, false)
         }
 
-        "Should process htme encrypted files" {
+        "Should decrypt htme encrypted files if requested" {
             val identifier = "htme"
             val sourceContents = sourceContents(identifier)
             val (encryptingKeyId, plaintextDataKey, ciphertextDataKey) = dataKeyService.batchDataKey()
@@ -59,13 +61,51 @@ class IntegrationTests: StringSpec() {
             val putRequest = with(PutObjectRequest.builder()) {
                 bucket(SOURCE_BUCKET)
                 key("$identifier/$identifier.csv.enc")
-                metadata(mapOf("datakeyencryptionkeyid" to encryptingKeyId,
-                    "iv" to iv,
-                    "ciphertext" to ciphertextDataKey))
+                metadata(mapOf(ENCRYPTING_KEY_ID_METADATA_KEY to encryptingKeyId,
+                    INITIALISATION_VECTOR_METADATA_KEY to iv,
+                    CIPHERTEXT_METADATA_KEY to ciphertextDataKey))
                 build()
             }
             s3.putObject(putRequest, AsyncRequestBody.fromBytes(encrypted)).await()
             verifyEgress(sourceContents, identifier, true)
+        }
+
+        "Should not decrypt htme encrypted files if not requested" {
+            val identifier = "htme_put_encrypted"
+            val sourceContents = sourceContents(identifier)
+            val (encryptingKeyId, plaintext, ciphertext) = dataKeyService.batchDataKey()
+            val (iv, encrypted) = cipherService.encrypt(plaintext, sourceContents.toByteArray())
+            val putRequest = with(PutObjectRequest.builder()) {
+                bucket(SOURCE_BUCKET)
+                key("$identifier/$identifier.csv.enc")
+                metadata(mapOf(ENCRYPTING_KEY_ID_METADATA_KEY to encryptingKeyId,
+                    INITIALISATION_VECTOR_METADATA_KEY to iv,
+                    CIPHERTEXT_METADATA_KEY to ciphertext))
+                build()
+            }
+            s3.putObject(putRequest, AsyncRequestBody.fromBytes(encrypted)).await()
+            insertEgressItem("$identifier/", "$identifier/", false)
+            val message = messageBody("$identifier/$PIPELINE_SUCCESS_FLAG")
+            val request = sendMessageRequest(message)
+            sqs.sendMessage(request).await()
+            withTimeout(Duration.ofSeconds(TEST_TIMEOUT)) {
+                val metadata = egressedMetadata(DESTINATION_BUCKET, "$identifier/$identifier.csv")
+                val encryptingKeyIdFromMetadata = metadata[ENCRYPTING_KEY_ID_METADATA_KEY]
+                val ivFromMetadata = metadata[INITIALISATION_VECTOR_METADATA_KEY]
+                val ciphertextFromMetadata = metadata[CIPHERTEXT_METADATA_KEY]
+                encryptingKeyIdFromMetadata.shouldNotBeNull()
+                ivFromMetadata.shouldNotBeNull()
+                ciphertextFromMetadata.shouldNotBeNull()
+                encryptingKeyIdFromMetadata shouldBe encryptingKeyId
+                ivFromMetadata shouldBe iv
+                ciphertextFromMetadata shouldBe ciphertext
+                val plaintextFromMetadata =
+                    dataKeyService.decryptKey(encryptingKeyIdFromMetadata, ciphertextFromMetadata)
+                plaintextFromMetadata shouldBe plaintext
+                val targetContents = egressedContents(DESTINATION_BUCKET, "$identifier/$identifier.csv")
+                val decrypted = cipherService.decrypt(plaintextFromMetadata, ivFromMetadata, targetContents)
+                String(decrypted) shouldBe sourceContents
+            }
         }
 
         "Should process files with today's date in prefix" {
@@ -82,7 +122,7 @@ class IntegrationTests: StringSpec() {
             val request = sendMessageRequest(message)
             sqs.sendMessage(request).await()
 
-            withTimeout(Duration.ofSeconds(20)) {
+            withTimeout(Duration.ofSeconds(TEST_TIMEOUT)) {
                 val targetContents = egressedContents(DESTINATION_BUCKET, "$identifier/${todaysDate()}/$identifier.csv")
                 String(targetContents) shouldBe sourceContents
             }
@@ -114,13 +154,16 @@ class IntegrationTests: StringSpec() {
         }
     }
 
-    private suspend fun verifyEgress(sourceContents: String, identifier: String, decrypt: Boolean = true, compressionFormat: String = "") {
+    private suspend fun verifyEgress(sourceContents: String,
+                                     identifier: String,
+                                     decrypt: Boolean = true,
+                                     compressionFormat: String = "") {
         insertEgressItem("$identifier/", "$identifier/", decrypt, compressionFormat)
         val message = messageBody("$identifier/$PIPELINE_SUCCESS_FLAG")
         val request = sendMessageRequest(message)
         sqs.sendMessage(request).await()
 
-        withTimeout(Duration.ofSeconds(20)) {
+        withTimeout(Duration.ofSeconds(TEST_TIMEOUT)) {
             val targetContents = egressedContents(DESTINATION_BUCKET,
                 if (compressionFormat.isEmpty()) "$identifier/$identifier.csv" else "$identifier/$identifier.csv.$compressionFormat")
 
@@ -159,20 +202,29 @@ class IntegrationTests: StringSpec() {
     private fun sourceContents(style: String) =
         List(100) { "$style,ENCRYPTED,CBOL,REPORT,LINE,NUMBER,$it" }.joinToString("\n")
 
-    private tailrec suspend fun egressedContents(bucket: String, key: String): ByteArray {
+    private suspend fun egressedContents(bucket: String, key: String): ByteArray =
+        egressedResponse(bucket, key).asByteArray()
+
+    private suspend fun egressedMetadata(bucket: String, key: String): Map<String, String> =
+        egressedResponse(bucket, key).response().metadata()
+
+    private tailrec suspend fun egressedResponse(bucket: String, key: String): ResponseBytes<GetObjectResponse> {
         try {
-            val request = with(GetObjectRequest.builder()) {
-                bucket(bucket)
-                key(key)
-                build()
-            }
-            return s3.getObject(request, AsyncResponseTransformer.toBytes()).await().asByteArray()
+            return s3.getObject(egressedObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await()
         } catch (e: NoSuchKeyException) {
             logger.info("'$bucket/$key' not present")
             delay(2000)
         }
-        return egressedContents(bucket, key)
+        return egressedResponse(bucket, key)
     }
+
+    private fun egressedObjectRequest(bucket: String,
+                                      key: String): GetObjectRequest =
+        with(GetObjectRequest.builder()) {
+            bucket(bucket)
+            key(key)
+            build()
+        }
 
     private fun egressColumn(column: String, value: String) =
         column to with(AttributeValue.builder()) {
@@ -199,7 +251,7 @@ class IntegrationTests: StringSpec() {
             }
         } ?: baseRecord
 
-        val withOptionalDecryptField = withOptionalCompressionFields.takeIf{ decrypt }?.let { r ->
+        val withOptionalDecryptField = withOptionalCompressionFields.takeIf { decrypt }?.let { r ->
             r + Pair(DECRYPT_FIELD_NAME, AttributeValue.builder().bool(true).build())
         } ?: withOptionalCompressionFields
 
@@ -214,12 +266,20 @@ class IntegrationTests: StringSpec() {
     companion object {
 
         private val logger = LoggerFactory.getLogger(IntegrationTests::class.java)
+
+        private const val TEST_TIMEOUT: Long = 20
+
+
         private const val EGRESS_TABLE = "data-egress"
         private const val PIPELINE_NAME = "INTEGRATION_TESTS"
         private const val PIPELINE_SUCCESS_FLAG = "pipeline_success.flag"
         private const val SOURCE_BUCKET = "source"
         private const val DESTINATION_BUCKET = "destination"
         private const val TRANSFER_TYPE = "S3"
+
+        private const val ENCRYPTING_KEY_ID_METADATA_KEY = "datakeyencryptionkeyid"
+        private const val INITIALISATION_VECTOR_METADATA_KEY = "iv"
+        private const val CIPHERTEXT_METADATA_KEY = "ciphertext"
 
         private const val SOURCE_BUCKET_FIELD_NAME = "source_bucket"
         private const val DESTINATION_BUCKET_FIELD_NAME = "destination_bucket"
