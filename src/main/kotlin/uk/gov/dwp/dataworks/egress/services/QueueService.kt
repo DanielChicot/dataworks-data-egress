@@ -4,6 +4,6 @@ import kotlinx.coroutines.flow.Flow
 import software.amazon.awssdk.services.sqs.model.DeleteMessageResponse
 
 interface QueueService {
-    suspend fun incomingPrefixes(): Flow<Pair<String, List<String>>>
+    fun incomingPrefixes(): Flow<Pair<String, List<String>>>
     suspend fun deleteMessage(receiptHandle: String): DeleteMessageResponse
 }

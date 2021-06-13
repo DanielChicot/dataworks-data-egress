@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConfigurationProperties(prefix = "aws")
 class AwsProperties(var sqsQueueUrl: String = "",
-                    var sqsCheckIntervalMs: Int = 10_000,
+                    var sqsCheckIntervalMs: Long = 10_000,
                     var dataEgressTable: String = "data-egress") {
 
     @Bean

@@ -18,8 +18,13 @@ import uk.gov.dwp.dataworks.egress.services.CipherService
 import uk.gov.dwp.dataworks.egress.services.DataKeyService
 import uk.gov.dwp.dataworks.egress.services.S3Service
 import uk.gov.dwp.dataworks.logging.DataworksLogger
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.zip.Deflater
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
+import java.util.zip.Inflater
 import com.amazonaws.services.s3.model.GetObjectRequest as GetObjectRequestVersion1
 
 @Service
@@ -35,9 +40,9 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
 
     override suspend fun egressObjects(specification: EgressSpecification): Boolean =
         s3AsyncClient.listObjectsV2(listObjectsRequest(specification)).await().contents()
-            .map(S3Object::key).map { key ->
-                egressObject(key, specification)
-            }.all { it }
+            .map(S3Object::key)
+            .filter { key -> !excludedObjects.any(key::endsWith) }
+            .map { key -> egressObject(key, specification) }.all { it }
 
     private suspend fun egressObject(key: String, specification: EgressSpecification): Boolean =
         try {
@@ -71,9 +76,18 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
         }
 
     private fun targetKey(specification: EgressSpecification,
-                          key: String): String =
-        "${specification.destinationPrefix.replace(Regex("""/$"""), "")}/${File(key).name}"
-            .replace(Regex("""^/"""), "").replace(Regex("""\.enc$"""), "")
+                          key: String): String {
+        val base = "${specification.destinationPrefix.replace(Regex("""/$"""), "")}/${File(key).name}"
+            .replace(Regex("""^/"""), "")
+            .replace(Regex("""\.enc$"""), "")
+
+        return if (specification.compressionFormat?.isNotBlank() == true) {
+            "${base}.${specification.compressionFormat}"
+        } else {
+            base
+        }
+    }
+
 
     private suspend fun egressClient(specification: EgressSpecification): S3AsyncClient =
         specification.roleArn?.let {
@@ -85,7 +99,27 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
     private fun targetContents(metadata: Map<String, String>,
                                specification: EgressSpecification,
                                sourceContents: ByteArray): ByteArray {
-        return sourceContents
+        return if (specification.compress) {
+            when (specification.compressionFormat) {
+                "gz" -> {
+                    val outputStream = ByteArrayOutputStream()
+                    GZIPOutputStream(outputStream).use { it.write(sourceContents) }
+                    outputStream.toByteArray()
+                }
+                "z" -> {
+                    with (Deflater()) {
+                        setInput(sourceContents)
+                        finish()
+                        val output = ByteArray(sourceContents.size)
+                        deflate(output)
+                        output
+                    }
+                }
+                else -> sourceContents
+            }
+        } else {
+            sourceContents
+        }
     }
 
     private suspend fun sourceContents(metadata: MutableMap<String, String>,
@@ -109,14 +143,17 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                 preEncryptedObjectContents(specification.sourceBucket, key)
             }
             else -> {
-                logger.info("Found unknown object",
+                logger.info("Found plaintext object",
                     "bucket" to specification.sourceBucket,
                     "key" to key,
                     *metadataPairs)
-                ByteArray(0)
+                plaintextContent(specification.sourceBucket, key)
             }
         }
     }
+
+    private suspend fun plaintextContent(bucket: String, key: String): ByteArray =
+        s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await().asByteArray()
 
     private suspend fun preEncryptedObjectContents(bucket: String, key: String): ByteArray =
         with(s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await()) {
@@ -161,6 +198,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
         private const val ENCRYPTING_KEY_ID_METADATA_KEY = "datakeyencryptionkeyid"
         private const val INITIALISATION_VECTOR_METADATA_KEY = "iv"
         private const val CIPHERTEXT_METADATA_KEY = "ciphertext"
+        private val excludedObjects = listOf("pipeline_success.flag")
     }
 }
 

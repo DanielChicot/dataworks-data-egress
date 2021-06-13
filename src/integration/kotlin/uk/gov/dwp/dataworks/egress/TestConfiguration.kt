@@ -44,14 +44,5 @@ class TestConfiguration {
     fun truststorePassword(): String = "changeit"
 
     @Bean
-    fun connectTimeout(): Int = 300_000
-
-    @Bean
-    fun connectionRequestTimeout(): Int = 300_000
-
-    @Bean
-    fun socketTimeout(): Int = 300_000
-
-    @Bean
     fun dksUrl(): String = "https://dks:8443"
 }

@@ -45,48 +45,12 @@ resource "aws_dynamodb_table" "data_egress" {
   }
 }
 
-resource "aws_dynamodb_table_item" "opsmi_data_egress_config" {
-  table_name = aws_dynamodb_table.data_egress.name
-  hash_key   = aws_dynamodb_table.data_egress.hash_key
-  range_key  = aws_dynamodb_table.data_egress.range_key
-
-  item = <<ITEM
-  {
-    "source_prefix":          {"S":     "opsmi/"},
-    "pipeline_name":          {"S":     "OpsMI"},
-    "recipient_name":         {"S":     "OpsMI"},
-    "transfer_type":          {"S":     "S3"},
-    "source_bucket":          {"S":     "source"},
-    "destination_bucket":     {"S":     "target"},
-    "destination_prefix":     {"S":     "/"}
-  }
-  ITEM
-}
-
-resource "aws_dynamodb_table_item" "cbol_data_egress_config" {
-  table_name = aws_dynamodb_table.data_egress.name
-  hash_key   = aws_dynamodb_table.data_egress.hash_key
-  range_key  = aws_dynamodb_table.data_egress.range_key
-
-  item = <<ITEM
-  {
-    "source_prefix":          {"S":     "dataegress/cbol-report/$TODAYS_DATE/"},
-    "pipeline_name":          {"S":     "CBOL"},
-    "recipient_name":         {"S":     "CBOL"},
-    "transfer_type":          {"S":     "S3"},
-    "source_bucket":          {"S":     "source"},
-    "destination_bucket":     {"S":     "target"},
-    "destination_prefix":     {"S":     "cbol/"}
-  }
-  ITEM
-}
-
 resource "aws_s3_bucket" "source_bucket" {
   bucket = "source"
   acl    = "public-read"
 }
 
-resource "aws_s3_bucket" "target_bucket" {
-  bucket = "target"
+resource "aws_s3_bucket" "destination_bucket" {
+  bucket = "destination"
   acl    = "public-read"
 }

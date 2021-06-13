@@ -36,12 +36,12 @@ services:
       - AWS_SQS_QUEUE_URL=http://localstack:4566/000000000000/integration-queue
       - DKS_URL=https://dks:8443
       - FETCH_ACM_CERTS=false
-      - SECURITY_IDENTITY_KEY_PASSWORD=changeit
-      - SECURITY_IDENTITY_STORE=development-keystore.jks
-      - SECURITY_IDENTITY_STORE_ALIAS=cid
-      - SECURITY_IDENTITY_STORE_PASSWORD=changeit
-      - SECURITY_TRUST_STORE=development-truststore.jks
-      - SECURITY_TRUST_STORE_PASSWORD=changeit
+      - SECURITY_KEY_PASSWORD=changeit
+      - SECURITY_KEYSTORE=development-keystore.jks
+      - SECURITY_KEYSTORE_ALIAS=cid
+      - SECURITY_KEYSTORE_PASSWORD=changeit
+      - SECURITY_TRUSTSTORE=development-truststore.jks
+      - SECURITY_TRUSTSTORE_PASSWORD=changeit
       - SPRING_MAIN_BANNER_MODE=off
       - SPRING_PROFILES_ACTIVE=LOCALSTACK
 

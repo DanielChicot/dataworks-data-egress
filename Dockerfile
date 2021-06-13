@@ -1,4 +1,4 @@
-FROM gradle:jdk16 as build
+FROM gradle:jdk14 as build
 
 RUN mkdir -p /build
 COPY build.gradle.kts .
@@ -7,7 +7,7 @@ COPY src/ ./src
 RUN gradle build
 RUN cp $(ls build/libs/*.jar | grep -v plain) /build/dataworks-data-egress.jar
 
-FROM openjdk:16-alpine
+FROM openjdk:14-alpine
 
 ARG http_proxy_full=""
 
@@ -22,6 +22,7 @@ RUN echo "ENV http: ${http_proxy}" \
     && echo "ENV HTTPS: ${HTTPS_PROXY}" \
     && echo "ARG full: ${http_proxy_full}"
 
+ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 ENV acm_cert_helper_version="0.37.0"
 RUN apk update \
     && apk upgrade \
@@ -54,4 +55,4 @@ RUN chmod -R a+rwx /usr/local/share/ca-certificates/
 USER $USER_NAME
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["java", "-Xmx2g", "-Dsecurity.", "-jar", "dataworks-data-egress.jar"]
+CMD ["java", "-Xmx2g", "-jar", "dataworks-data-egress.jar"]
