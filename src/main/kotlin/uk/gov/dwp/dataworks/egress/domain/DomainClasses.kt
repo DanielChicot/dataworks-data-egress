@@ -5,6 +5,7 @@ data class EgressSpecification(val sourceBucket: String,
                                val destinationBucket: String,
                                val destinationPrefix: String,
                                val transferType: String,
+                               val decrypt: Boolean = false,
                                val compress: Boolean = false,
                                val compressionFormat: String?,
                                val roleArn: String?)

@@ -48,7 +48,7 @@ class IntegrationTests: StringSpec() {
             val putRequest =
                 PutObjectRequestVersion1(SOURCE_BUCKET, "$identifier/$identifier.csv", inputStream, ObjectMetadata())
             encryptingS3.putObject(putRequest)
-            verifyEgress(sourceContents, identifier)
+            verifyEgress(sourceContents, identifier, false)
         }
 
         "Should process htme encrypted files" {
@@ -65,7 +65,7 @@ class IntegrationTests: StringSpec() {
                 build()
             }
             s3.putObject(putRequest, AsyncRequestBody.fromBytes(encrypted)).await()
-            verifyEgress(sourceContents, identifier)
+            verifyEgress(sourceContents, identifier, true)
         }
 
         "Should process files with today's date in prefix" {
@@ -97,7 +97,7 @@ class IntegrationTests: StringSpec() {
                 build()
             }
             s3.putObject(putRequest, AsyncRequestBody.fromBytes(sourceContents.toByteArray())).await()
-            verifyEgress(sourceContents, identifier, "gz")
+            verifyEgress(sourceContents, identifier, false, "gz")
         }
 
 
@@ -110,12 +110,12 @@ class IntegrationTests: StringSpec() {
                 build()
             }
             s3.putObject(putRequest, AsyncRequestBody.fromBytes(sourceContents.toByteArray())).await()
-            verifyEgress(sourceContents, identifier, "z")
+            verifyEgress(sourceContents, identifier, false, "z")
         }
     }
 
-    private suspend fun verifyEgress(sourceContents: String, identifier: String, compressionFormat: String = "") {
-        insertEgressItem("$identifier/", "$identifier/", compressionFormat)
+    private suspend fun verifyEgress(sourceContents: String, identifier: String, decrypt: Boolean = true, compressionFormat: String = "") {
+        insertEgressItem("$identifier/", "$identifier/", decrypt, compressionFormat)
         val message = messageBody("$identifier/$PIPELINE_SUCCESS_FLAG")
         val request = sendMessageRequest(message)
         sqs.sendMessage(request).await()
@@ -182,6 +182,7 @@ class IntegrationTests: StringSpec() {
 
 
     private suspend fun insertEgressItem(sourcePrefix: String, destinationPrefix: String,
+                                         decrypt: Boolean = false,
                                          compressionFormat: String = ""): PutItemResponse {
         val baseRecord = mapOf<String, AttributeValue>(
             egressColumn(SOURCE_BUCKET_FIELD_NAME, SOURCE_BUCKET),
@@ -191,16 +192,20 @@ class IntegrationTests: StringSpec() {
             egressColumn(DESTINATION_PREFIX_FIELD_NAME, destinationPrefix),
             egressColumn(TRANSFER_TYPE_FIELD_NAME, TRANSFER_TYPE))
 
-        val record = baseRecord.let { r ->
+        val withOptionalCompressionFields = baseRecord.let { r ->
             compressionFormat.takeIf(String::isNotBlank)?.let { format ->
                 r + egressColumn(COMPRESSION_FORMAT_FIELD_NAME, format) +
                         Pair(COMPRESS_FIELD_NAME, AttributeValue.builder().bool(true).build())
             }
         } ?: baseRecord
 
+        val withOptionalDecryptField = withOptionalCompressionFields.takeIf{ decrypt }?.let { r ->
+            r + Pair(DECRYPT_FIELD_NAME, AttributeValue.builder().bool(true).build())
+        } ?: withOptionalCompressionFields
+
         val request = with(PutItemRequest.builder()) {
             tableName(EGRESS_TABLE)
-            item(record)
+            item(withOptionalDecryptField)
             build()
         }
         return dynamoDb.putItem(request).await()
@@ -224,6 +229,7 @@ class IntegrationTests: StringSpec() {
         private const val TRANSFER_TYPE_FIELD_NAME = "transfer_type"
         private const val COMPRESSION_FORMAT_FIELD_NAME = "compress_fmt"
         private const val COMPRESS_FIELD_NAME = "compress"
+        private const val DECRYPT_FIELD_NAME = "decrypt"
 
         private val applicationContext by lazy {
             AnnotationConfigApplicationContext(TestConfiguration::class.java)

@@ -26,6 +26,7 @@ class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
                 destinationBucket = attributeStringValue(it, DESTINATION_BUCKET_COLUMN),
                 destinationPrefix = attributeStringValue(it, DESTINATION_PREFIX_COLUMN).replace(TODAYS_DATE_PLACEHOLDER, todaysDate()),
                 transferType = attributeStringValue(it, TRANSFER_TYPE_COLUMN),
+                decrypt = it[DECRYPT_COLUMN]?.bool() ?: false,
                 compress = it[COMPRESS_COLUMN]?.bool() ?: false,
                 compressionFormat = it[COMPRESSION_FORMAT_COLUMN]?.s(),
                 roleArn = it[ROLE_ARN_COLUMN]?.s())
@@ -63,6 +64,7 @@ class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
         private const val DESTINATION_PREFIX_COLUMN: String = "destination_prefix"
         private const val TRANSFER_TYPE_COLUMN: String = "transfer_type"
         private const val COMPRESS_COLUMN: String = "compress"
+        private const val DECRYPT_COLUMN: String = "decrypt"
         private const val COMPRESSION_FORMAT_COLUMN: String = "compress_fmt"
         private const val ROLE_ARN_COLUMN: String = "role_arn"
         private const val TODAYS_DATE_PLACEHOLDER = "\$TODAYS_DATE"

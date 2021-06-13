@@ -18,13 +18,10 @@ import uk.gov.dwp.dataworks.egress.services.CipherService
 import uk.gov.dwp.dataworks.egress.services.DataKeyService
 import uk.gov.dwp.dataworks.egress.services.S3Service
 import uk.gov.dwp.dataworks.logging.DataworksLogger
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.Deflater
-import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
-import java.util.zip.Inflater
 import com.amazonaws.services.s3.model.GetObjectRequest as GetObjectRequestVersion1
 
 @Service
@@ -51,8 +48,14 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             logger.info("Got metadata", "metadata" to "$metadata")
             val sourceContents = sourceContents(metadata, specification, key)
             val targetContents = targetContents(metadata, specification, sourceContents)
-            egressClient(specification)
-                .putObject(putObjectRequest(specification, key), AsyncRequestBody.fromBytes(targetContents)).await()
+
+            val request = if (wasClientSideEncrypted(metadata) && !specification.decrypt) {
+                putObjectRequestWithEncryptionMetadata(specification, key, metadata)
+            } else {
+                putObjectRequest(specification, key)
+            }
+
+            egressClient(specification).putObject(request, AsyncRequestBody.fromBytes(targetContents)).await()
             true
         } catch (e: Exception) {
             logger.error("Failed to egress object", e, "key" to key, "specification" to "$specification")
@@ -67,11 +70,23 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             build()
         }
 
+
     private fun putObjectRequest(specification: EgressSpecification,
                                  key: String): PutObjectRequest =
         with(PutObjectRequest.builder()) {
             bucket(specification.destinationBucket)
             key(targetKey(specification, key))
+            build()
+        }
+
+    private fun putObjectRequestWithEncryptionMetadata(specification: EgressSpecification,
+                                                       key: String, metadata: Map<String, String>): PutObjectRequest =
+        with(PutObjectRequest.builder()) {
+            bucket(specification.destinationBucket)
+            key(targetKey(specification, key))
+            metadata(mapOf(INITIALISATION_VECTOR_METADATA_KEY to metadata[INITIALISATION_VECTOR_METADATA_KEY],
+                           ENCRYPTING_KEY_ID_METADATA_KEY to metadata[ENCRYPTING_KEY_ID_METADATA_KEY],
+                           CIPHERTEXT_METADATA_KEY to metadata[CIPHERTEXT_METADATA_KEY]))
             build()
         }
 
@@ -107,7 +122,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                     outputStream.toByteArray()
                 }
                 "z" -> {
-                    with (Deflater()) {
+                    with(Deflater()) {
                         setInput(sourceContents)
                         finish()
                         val output = ByteArray(sourceContents.size)
@@ -135,8 +150,8 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                     *metadataPairs)
                 clientSideEncryptedObjectContents(specification.sourceBucket, key)
             }
-            wasPreEncrypted(metadata) -> {
-                logger.info("Found pre-encrypted object",
+            wasPreEncrypted(metadata) && specification.decrypt -> {
+                logger.info("Found object requiring decryption",
                     "bucket" to specification.sourceBucket,
                     "key" to key,
                     *metadataPairs)
