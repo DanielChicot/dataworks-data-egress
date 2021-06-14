@@ -89,7 +89,7 @@ class IntegrationTests: StringSpec() {
             val request = sendMessageRequest(message)
             sqs.sendMessage(request).await()
             withTimeout(Duration.ofSeconds(TEST_TIMEOUT)) {
-                val metadata = egressedMetadata(DESTINATION_BUCKET, "$identifier/$identifier.csv")
+                val metadata = egressedMetadata(DESTINATION_BUCKET, "$identifier/$identifier.csv.enc")
                 val encryptingKeyIdFromMetadata = metadata[ENCRYPTING_KEY_ID_METADATA_KEY]
                 val ivFromMetadata = metadata[INITIALISATION_VECTOR_METADATA_KEY]
                 val ciphertextFromMetadata = metadata[CIPHERTEXT_METADATA_KEY]
@@ -102,7 +102,7 @@ class IntegrationTests: StringSpec() {
                 val plaintextFromMetadata =
                     dataKeyService.decryptKey(encryptingKeyIdFromMetadata, ciphertextFromMetadata)
                 plaintextFromMetadata shouldBe plaintext
-                val targetContents = egressedContents(DESTINATION_BUCKET, "$identifier/$identifier.csv")
+                val targetContents = egressedContents(DESTINATION_BUCKET, "$identifier/$identifier.csv.enc")
                 val decrypted = cipherService.decrypt(plaintextFromMetadata, ivFromMetadata, targetContents)
                 String(decrypted) shouldBe sourceContents
             }

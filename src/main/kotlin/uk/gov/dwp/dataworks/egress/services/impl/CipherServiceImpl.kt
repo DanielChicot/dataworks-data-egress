@@ -24,7 +24,7 @@ class CipherServiceImpl(private val secureRandom: SecureRandom): CipherService {
         val initialisationVector = ByteArray(16).apply { secureRandom.nextBytes(this) }
         val keySpec: Key = SecretKeySpec(Base64.getDecoder().decode(key), "AES")
         val cipher = encryptingCipher(keySpec, initialisationVector)
-        return EncryptionResult(String(Base64.getEncoder().encode(initialisationVector)), cipher.doFinal(plaintext))
+        return EncryptionResult(Base64.getEncoder().encodeToString(initialisationVector), cipher.doFinal(plaintext))
     }
 
     override fun decrypt(key: String, initializationVector: String, encrypted: ByteArray): ByteArray {

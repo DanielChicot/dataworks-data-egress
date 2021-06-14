@@ -93,7 +93,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                           key: String): String {
         val base = "${specification.destinationPrefix.replace(Regex("""/$"""), "")}/${File(key).name}"
             .replace(Regex("""^/"""), "")
-            .replace(Regex("""\.enc$"""), "")
+            .replace(Regex("""\.enc$"""), if (specification.decrypt) "" else ".enc")
 
         return if (specification.compressionFormat?.isNotBlank() == true) {
             "${base}.${specification.compressionFormat}"
