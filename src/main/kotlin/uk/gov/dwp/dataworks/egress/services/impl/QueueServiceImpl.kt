@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.yield
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.model.*
@@ -35,10 +36,11 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
                             emit(Pair(receiptHandle, messagePrefixes(body)))
                         }
                     } else {
+                        logger.info("No message received")
                         delay(sqsCheckIntervalMs)
                     }
                 } else {
-                    logger.info("Nothing on the queue")
+                    logger.info("No messages on the queue")
                     delay(sqsCheckIntervalMs)
                 }
             }

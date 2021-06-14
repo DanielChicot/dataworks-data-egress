@@ -17,9 +17,9 @@ class QueueServiceImplTest: WordSpec() {
 
     init {
 
-        "incomingPrefixes" should {
+        "QueueService" should {
 
-            "emit a message when there is one on the queue" {
+            "emit a message when one appears on the queue" {
 
                 val queueAttributesResponse = with(GetQueueAttributesResponse.builder()) {
                     attributes(mapOf(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES to "1"))
@@ -53,8 +53,10 @@ class QueueServiceImplTest: WordSpec() {
                 val noMessagesFuture = CompletableFuture.completedFuture(noMessagesResponse)
                 val receiveMessageFuture = CompletableFuture.completedFuture(receiveMessageResponse)
 
+
                 val sqs = mock<SqsAsyncClient> {
-                    on { getQueueAttributes(any<GetQueueAttributesRequest>()) } doReturn queueAttributesFuture doReturn noMessagesFuture
+                    on { getQueueAttributes(any<GetQueueAttributesRequest>()) } doReturnConsecutively
+                            List(10) { noMessagesFuture } + listOf(queueAttributesFuture, noMessagesFuture)
                     on { receiveMessage(any<ReceiveMessageRequest>()) } doReturn receiveMessageFuture
                 }
 

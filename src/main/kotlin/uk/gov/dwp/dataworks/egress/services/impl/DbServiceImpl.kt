@@ -1,5 +1,6 @@
 package uk.gov.dwp.dataworks.egress.services.impl
 
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.future.await
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
@@ -14,36 +15,44 @@ import java.util.*
 class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
                     private val dataEgressTable: String): DbService {
 
-    override suspend fun tableEntries(prefix: String): List<EgressSpecification> =
-        entries().filter {
-            it[SOURCE_PREFIX_COLUMN]?.s()
-                ?.replace(TODAYS_DATE_PLACEHOLDER, todaysDate())
-                ?.replace(Regex("""\*$"""), "")?.let(prefix::startsWith) ?: false
-        }.map {
-            EgressSpecification(
-                sourceBucket = attributeStringValue(it, SOURCE_BUCKET_COLUMN),
-                sourcePrefix = attributeStringValue(it, SOURCE_PREFIX_COLUMN).replace(TODAYS_DATE_PLACEHOLDER, todaysDate()),
-                destinationBucket = attributeStringValue(it, DESTINATION_BUCKET_COLUMN),
-                destinationPrefix = attributeStringValue(it, DESTINATION_PREFIX_COLUMN).replace(TODAYS_DATE_PLACEHOLDER, todaysDate()),
-                transferType = attributeStringValue(it, TRANSFER_TYPE_COLUMN),
-                decrypt = it[DECRYPT_COLUMN]?.bool() ?: false,
-                compress = it[COMPRESS_COLUMN]?.bool() ?: false,
-                compressionFormat = it[COMPRESSION_FORMAT_COLUMN]?.s(),
-                roleArn = it[ROLE_ARN_COLUMN]?.s())
+    override suspend fun tableEntryMatches(prefix: String): List<EgressSpecification> =
+        entries().toList().flatten().filter { matchesSourcePrefix(it, prefix) }.map(::egressSpecification)
+
+    private fun matchesSourcePrefix(it: Map<String, AttributeValue>,
+                                    prefix: String) =
+        it[SOURCE_PREFIX_COLUMN]?.s()
+            ?.replace(TODAYS_DATE_PLACEHOLDER, todaysDate())
+            ?.replace(Regex("""\*$"""), "")?.let(prefix::startsWith) ?: false
+
+    private fun egressSpecification(dynamoDbRecord: Map<String, AttributeValue>) =
+        EgressSpecification(
+            sourceBucket = attributeStringValue(dynamoDbRecord, SOURCE_BUCKET_COLUMN),
+            sourcePrefix = attributeStringValue(dynamoDbRecord, SOURCE_PREFIX_COLUMN).replace(TODAYS_DATE_PLACEHOLDER,
+                todaysDate()),
+            destinationBucket = attributeStringValue(dynamoDbRecord, DESTINATION_BUCKET_COLUMN),
+            destinationPrefix = attributeStringValue(dynamoDbRecord, DESTINATION_PREFIX_COLUMN).replace(TODAYS_DATE_PLACEHOLDER,
+                todaysDate()),
+            transferType = attributeStringValue(dynamoDbRecord, TRANSFER_TYPE_COLUMN),
+            decrypt = dynamoDbRecord[DECRYPT_COLUMN]?.bool() ?: false,
+            compress = dynamoDbRecord[COMPRESS_COLUMN]?.bool() ?: false,
+            compressionFormat = dynamoDbRecord[COMPRESSION_FORMAT_COLUMN]?.s(),
+            roleArn = dynamoDbRecord[ROLE_ARN_COLUMN]?.s())
+
+    private suspend fun entries(): Flow<List<Map<String, AttributeValue>>> =
+        flow {
+            entriesEmitter(this)
         }
 
-    private fun attributeStringValue(it: Map<String, AttributeValue>, key: String) = it[key]?.s() ?: ""
-
-    private tailrec suspend fun entries(accumulated: List<Map<String, AttributeValue>> = emptyList(),
-                                        startKey: Map<String, AttributeValue>? = null): List<Map<String, AttributeValue>> {
+    private tailrec suspend fun entriesEmitter(collector: FlowCollector<List<Map<String, AttributeValue>>>, startKey: Map<String, AttributeValue>? = null) {
         val response = dynamoDb.scan(scanRequest(startKey)).await()
         val nextPage = response.items()
         val lastKey = response.lastEvaluatedKey()
 
-        return if (lastKey == null || lastKey.isEmpty())
-            accumulated + nextPage
-        else
-            entries(accumulated + nextPage, lastKey)
+        collector.emit(nextPage)
+
+        if (lastKey != null && lastKey.isNotEmpty()) {
+            entriesEmitter(collector, lastKey)
+        }
     }
 
     private fun scanRequest(startKey: Map<String, AttributeValue>?): ScanRequest =
@@ -55,6 +64,7 @@ class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
             build()
         }
 
+    private fun attributeStringValue(it: Map<String, AttributeValue>, key: String) = it[key]?.s() ?: ""
     private fun todaysDate() = SimpleDateFormat("yyyy-MM-dd").format(Date())
 
     companion object {
