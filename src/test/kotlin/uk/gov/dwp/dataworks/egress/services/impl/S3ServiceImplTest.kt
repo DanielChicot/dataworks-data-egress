@@ -23,7 +23,7 @@ import com.amazonaws.services.s3.model.S3Object as S3ObjectVersion1
 class S3ServiceImplTest: WordSpec() {
     init {
         "s3Service" should {
-            "decrypt objects" {
+            "decrypt" {
                 val objects = objectsSummaries()
                 val objectsWithContents = objectsWithContents()
                 val s3AsyncClient = s3AsyncClient(objects, objectsWithContents)
@@ -86,7 +86,7 @@ class S3ServiceImplTest: WordSpec() {
                 verifyZeroInteractions(compressionService)
             }
 
-            "assume role, not decrypt if not required, compress" {
+            "assume role, not decrypt, compress" {
                 val objects = objectsSummaries()
 
                 val listObjectsResponse = with(ListObjectsV2Response.builder()) {

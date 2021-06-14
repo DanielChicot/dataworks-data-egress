@@ -1,6 +1,5 @@
 package uk.gov.dwp.dataworks.egress
 
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
@@ -45,4 +44,7 @@ class TestConfiguration {
 
     @Bean
     fun dksUrl(): String = "https://dks:8443"
+
+    @Bean
+    fun cipherTransformation() = "AES/CTR/NoPadding"
 }
