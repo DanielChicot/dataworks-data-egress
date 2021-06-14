@@ -48,7 +48,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             logger.info("Got metadata", "metadata" to "$metadata")
             val sourceContents = sourceContents(metadata, specification, key)
             val targetContents = targetContents(metadata, specification, sourceContents)
-            val request = if (wasPreEncrypted(metadata) && !specification.decrypt) {
+            val request = if (wasEncryptedByHtme(metadata) && !specification.decrypt) {
                 putObjectRequestWithEncryptionMetadata(specification, key, metadata)
             } else {
                 putObjectRequest(specification, key)
@@ -142,34 +142,41 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
         val metadataPairs = metadata.entries.map { (k, v) -> Pair(k, v) }.toTypedArray()
 
         return when {
-            wasClientSideEncrypted(metadata) -> {
-                logger.info("Found client side encrypted object",
+            wasEncryptedByEmr(metadata) -> {
+                logger.info("Found EMR client-side encrypted object",
                     "bucket" to specification.sourceBucket,
                     "key" to key,
                     *metadataPairs)
-                clientSideEncryptedObjectContents(specification.sourceBucket, key)
+                emrEncryptedObjectContents(specification.sourceBucket, key)
             }
-            wasPreEncrypted(metadata) && specification.decrypt -> {
-                logger.info("Found object requiring decryption",
+            wasEncryptedByHtme(metadata) && specification.decrypt -> {
+                logger.info("Found HTME encrypted object",
                     "bucket" to specification.sourceBucket,
                     "key" to key,
                     *metadataPairs)
-                preEncryptedObjectContents(specification.sourceBucket, key)
+                htmeEncryptedObjectContents(specification.sourceBucket, key)
             }
             else -> {
-                logger.info("Found plaintext object",
+                logger.info("Found unencrypted object",
                     "bucket" to specification.sourceBucket,
                     "key" to key,
                     *metadataPairs)
-                plaintextContent(specification.sourceBucket, key)
+                unencryptedObjectContents(specification.sourceBucket, key)
             }
         }
     }
 
-    private suspend fun plaintextContent(bucket: String, key: String): ByteArray =
-        s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await().asByteArray()
+    private suspend fun emrEncryptedObjectContents(bucket: String, key: String) =
+        withContext(Dispatchers.IO) {
+            ByteArrayOutputStream().run {
+                decryptingS3Client.getObject(GetObjectRequestVersion1(bucket, key)).objectContent.use {
+                    it.copyTo(this)
+                }
+                toByteArray()
+            }
+        }
 
-    private suspend fun preEncryptedObjectContents(bucket: String, key: String): ByteArray =
+    private suspend fun htmeEncryptedObjectContents(bucket: String, key: String): ByteArray =
         with(s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await()) {
             val metadata = response().metadata()
             val iv = metadata[INITIALISATION_VECTOR_METADATA_KEY]
@@ -179,25 +186,21 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             cipherService.decrypt(decryptedKey, iv!!, asByteArray())
         }
 
-    private suspend fun clientSideEncryptedObjectContents(bucket: String, key: String) = withContext(Dispatchers.IO) {
-        ByteArrayOutputStream().run {
-            decryptingS3Client.getObject(GetObjectRequestVersion1(bucket, key)).objectContent.use {
-                it.copyTo(this)
-            }
-            toByteArray()
-        }
-    }
 
-    private fun wasClientSideEncrypted(metadata: MutableMap<String, String>) =
+    private suspend fun unencryptedObjectContents(bucket: String, key: String): ByteArray =
+        s3AsyncClient.getObject(getObjectRequest(bucket, key), AsyncResponseTransformer.toBytes()).await().asByteArray()
+
+    private fun wasEncryptedByEmr(metadata: MutableMap<String, String>) =
         metadata.containsKey(MATERIALS_DESCRIPTION_METADATA_KEY)
 
-    private fun wasPreEncrypted(metadata: MutableMap<String, String>): Boolean =
+    private fun wasEncryptedByHtme(metadata: MutableMap<String, String>): Boolean =
         listOf(ENCRYPTING_KEY_ID_METADATA_KEY, INITIALISATION_VECTOR_METADATA_KEY, CIPHERTEXT_METADATA_KEY)
             .all(metadata::containsKey)
 
-    private suspend fun objectMetadata(bucket: String, key: String) = withContext(Dispatchers.IO) {
-        s3Client.getObject(getObjectRequest(bucket, key)).response().metadata()
-    }
+    private suspend fun objectMetadata(bucket: String, key: String) =
+        withContext(Dispatchers.IO) {
+            s3Client.getObject(getObjectRequest(bucket, key)).response().metadata()
+        }
 
     private fun getObjectRequest(bucket: String, key: String): GetObjectRequest =
         with(GetObjectRequest.builder()) {

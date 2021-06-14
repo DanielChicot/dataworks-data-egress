@@ -29,12 +29,13 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
                     if (response.hasMessages() && response.messages().size > 0) {
                         val message = response.messages().first()
                         val receiptHandle = message.receiptHandle()
-                        sqs.changeMessageVisibility(changeMessageVisibilityRequest(receiptHandle)).await()
-                        logger.info("Message received", "body" to escaped(message))
+                        logger.info("Message received", "body" to message.body())
                         val body = gson.jsonObject(message.body())
                         if (body.has("Records")) {
                             emit(Pair(receiptHandle, messagePrefixes(body)))
                         }
+                    } else {
+                        delay(sqsCheckIntervalMs)
                     }
                 } else {
                     logger.info("Nothing on the queue")
