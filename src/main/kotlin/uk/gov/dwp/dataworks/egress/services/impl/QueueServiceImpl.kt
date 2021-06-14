@@ -56,14 +56,6 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
             build()
         }
 
-    private fun changeMessageVisibilityRequest(receipt: String): ChangeMessageVisibilityRequest =
-        with(ChangeMessageVisibilityRequest.builder()) {
-            queueUrl(sqsQueueUrl)
-            receiptHandle(receipt)
-            visibilityTimeout(15 * 60)
-            build()
-        }
-
     private fun messagePrefixes(body: JsonObject): List<String> =
         body.getAsJsonArray("Records")
             .asSequence()
@@ -98,11 +90,6 @@ class QueueServiceImpl(private val sqs: SqsAsyncClient,
             build()
         }
 
-    private fun escaped(message: Message): String =
-        with(JsonObject()) {
-            addProperty("message", message.body())
-            Gson().toJson(this["message"])
-        }
 
     companion object {
         private val gson = Gson()

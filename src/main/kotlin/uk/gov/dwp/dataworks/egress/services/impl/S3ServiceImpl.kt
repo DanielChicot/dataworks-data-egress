@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.model.S3Object
 import uk.gov.dwp.dataworks.egress.domain.EgressSpecification
 import uk.gov.dwp.dataworks.egress.services.CipherService
+import uk.gov.dwp.dataworks.egress.services.CompressionService
 import uk.gov.dwp.dataworks.egress.services.DataKeyService
 import uk.gov.dwp.dataworks.egress.services.S3Service
 import uk.gov.dwp.dataworks.logging.DataworksLogger
@@ -30,7 +31,8 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                     private val decryptingS3Client: AmazonS3EncryptionV2,
                     private val assumedRoleS3ClientProvider: suspend (String) -> S3AsyncClient,
                     private val dataKeyService: DataKeyService,
-                    private val cipherService: CipherService): S3Service {
+                    private val cipherService: CipherService,
+                    private val compressionService: CompressionService): S3Service {
 
     override suspend fun egressObjects(specifications: List<EgressSpecification>): Boolean =
         specifications.map { specification -> egressObjects(specification) }.all { it }
@@ -53,7 +55,6 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
             } else {
                 putObjectRequest(specification, key)
             }
-
             egressClient(specification).putObject(request, AsyncRequestBody.fromBytes(targetContents)).await()
             true
         } catch (e: Exception) {
@@ -114,23 +115,7 @@ class S3ServiceImpl(private val s3AsyncClient: S3AsyncClient,
                                specification: EgressSpecification,
                                sourceContents: ByteArray): ByteArray {
         return if (specification.compress) {
-            when (specification.compressionFormat) {
-                "gz" -> {
-                    val outputStream = ByteArrayOutputStream()
-                    GZIPOutputStream(outputStream).use { it.write(sourceContents) }
-                    outputStream.toByteArray()
-                }
-                "z" -> {
-                    with(Deflater()) {
-                        setInput(sourceContents)
-                        finish()
-                        val output = ByteArray(sourceContents.size)
-                        deflate(output)
-                        output
-                    }
-                }
-                else -> sourceContents
-            }
+            compressionService.compress(specification.compressionFormat, sourceContents)
         } else {
             sourceContents
         }

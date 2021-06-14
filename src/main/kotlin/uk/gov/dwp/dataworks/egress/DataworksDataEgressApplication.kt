@@ -2,6 +2,7 @@ package uk.gov.dwp.dataworks.egress
 
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.springframework.boot.CommandLineRunner
@@ -31,6 +32,8 @@ class DataworksDataEgressApplication(private val queueService: QueueService,
                         .collect {
                             logger.info("Message processed")
                         }
+
+
                 } catch (e: Throwable) {
                     logger.error("Error in flow", e)
                 }

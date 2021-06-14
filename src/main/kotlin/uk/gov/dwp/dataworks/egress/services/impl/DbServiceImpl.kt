@@ -39,9 +39,7 @@ class DbServiceImpl(private val dynamoDb: DynamoDbAsyncClient,
             roleArn = dynamoDbRecord[ROLE_ARN_COLUMN]?.s())
 
     private suspend fun entries(): Flow<List<Map<String, AttributeValue>>> =
-        flow {
-            entriesEmitter(this)
-        }
+        flow { entriesEmitter(this) }
 
     private tailrec suspend fun entriesEmitter(collector: FlowCollector<List<Map<String, AttributeValue>>>, startKey: Map<String, AttributeValue>? = null) {
         val response = dynamoDb.scan(scanRequest(startKey)).await()

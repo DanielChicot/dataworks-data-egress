@@ -14,7 +14,8 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 @Service
-class CipherServiceImpl(private val secureRandom: SecureRandom): CipherService {
+class CipherServiceImpl(private val secureRandom: SecureRandom,
+                        private val cipherTransformation: String): CipherService {
 
     init {
         Security.addProvider(BouncyCastleProvider())
@@ -44,6 +45,4 @@ class CipherServiceImpl(private val secureRandom: SecureRandom): CipherService {
             init(mode, key, IvParameterSpec(initialisationVector))
         }
 
-    @Value("\${cipher.transformation:AES/CTR/NoPadding}")
-    private lateinit var cipherTransformation: String
 }
