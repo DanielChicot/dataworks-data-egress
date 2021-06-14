@@ -1,8 +1,6 @@
 package uk.gov.dwp.dataworks.egress.services.impl
 
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.*
 import io.kotest.core.spec.style.WordSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
@@ -17,22 +15,34 @@ import java.util.concurrent.CompletableFuture
 class DbServiceImplTest: WordSpec() {
     init {
         "DbService" should {
-            "return matching item, filter non-matching item" {
+
+            "page for all items, returning matches, filtering non-matches" {
                 val receivedPrefix = "source/prefix/pipeline_success.flag"
                 val matchingPrefix = "source/prefix/"
                 val matchingItem = egressTableItem(matchingPrefix)
                 val nonMatchingItem = egressTableItem("non/matching/prefix")
-                val scanResponse = with(ScanResponse.builder()) {
-                    items(matchingItem, nonMatchingItem)
+
+                val scanResponse1 = with(ScanResponse.builder()) {
+                    items(nonMatchingItem)
+                    lastEvaluatedKey(mapOf(SOURCE_PREFIX_KEY to attributeValue(LAST_EVALUATED_KEY)))
                     build()
                 }
-                val scanFuture = CompletableFuture.completedFuture(scanResponse)
+
+                val scanResponse2 = with(ScanResponse.builder()) {
+                    items(matchingItem)
+                    build()
+                }
+
+                val scanFuture1 = CompletableFuture.completedFuture(scanResponse1)
+                val scanFuture2 = CompletableFuture.completedFuture(scanResponse2)
                 val dynamoDb = mock<DynamoDbAsyncClient> {
-                    on { scan(any<ScanRequest>()) } doReturn scanFuture
+                    on { scan(any<ScanRequest>()) } doReturnConsecutively listOf(scanFuture1, scanFuture2)
                 }
                 val dbService = DbServiceImpl(dynamoDb, DATA_EGRESS_TABLE)
                 val entries = dbService.tableEntryMatches(receivedPrefix)
                 entries shouldContainExactly listOf(egressSpecification(matchingPrefix))
+                verify(dynamoDb, times(2)).scan(any<ScanRequest>())
+                verifyNoMoreInteractions(dynamoDb)
             }
 
             "match items with today's date" {
@@ -84,5 +94,6 @@ class DbServiceImplTest: WordSpec() {
         private const val DESTINATION_BUCKET = "destination"
         private const val TRANSFER_TYPE = "S3"
         private const val DESTINATION_PREFIX = "destination/prefix"
+        private const val LAST_EVALUATED_KEY = "LAST_EVALUATED_KEY"
     }
 }
